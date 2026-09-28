@@ -11,48 +11,64 @@
   <header class="masthead">
     <div class="shell">
       <a class="brand" href="/sunday-radar/">SUNDAY RADAR</a>
-      <p>정치와 정책 다음에 움직이는 것을 봅니다.</p>
+      <a class="archive-link" href="/sunday-radar/archive.html">지난 브리핑</a>
     </div>
   </header>
   <main class="shell">
     <section class="hero">
-      <p class="eyebrow">WEEK ENDING {{ brief.week_ending }} · QUICK READ {{ brief.reading_minutes }} MIN</p>
-      <h1>{{ brief.headline }}</h1>
-      <p class="lede">{{ brief.overview }}</p>
+      <p class="edition">{{ brief.week_ending }} · 약 {{ brief.reading_minutes }}분 · 핵심 이슈 {{ brief.issues | length }}개</p>
+      <p class="hero-label">이번 주 판세</p>
+      <h1>이번 주,<br>이것부터 보세요</h1>
+      <p class="lede">복잡한 뉴스에서 시장과 생활로 이어질 흐름만 골랐습니다.</p>
+      {% if brief.issues %}
+      <nav class="issue-index" aria-label="핵심 이슈 바로가기">
+        {% for issue in brief.issues[:3] %}
+        <a href="#issue-{{ loop.index }}"><b>{{ '%02d' | format(loop.index) }}</b><span>{{ issue.title }}</span></a>
+        {% endfor %}
+      </nav>
+      <a class="start-link" href="#board-title">첫 이슈부터 읽기 ↓</a>
+      {% endif %}
       {% if brief.missing_days %}<p class="notice">입력 누락일: {{ brief.missing_days | join(', ') }}</p>{% endif %}
     </section>
 
     <section aria-labelledby="board-title">
-      <div class="section-heading"><span>01</span><h2 id="board-title">이번 주 판세</h2></div>
+      <div class="section-heading"><p>핵심 이슈</p><h2 id="board-title">왜 중요한지까지<br>한 번에 읽기</h2></div>
       {% for issue in brief.issues %}
-      <article class="issue-card">
-        <div class="issue-meta"><span>{{ issue.category }}</span><span>{{ issue.active_days }}일 등장</span><span>RADAR {{ issue.score | round | int }}</span></div>
+      <article class="issue-card" id="issue-{{ loop.index }}">
+        <div class="issue-number"><b>{{ '%02d' | format(loop.index) }}</b><span>{{ issue.category }} · 이번 주 {{ issue.active_days }}일 포착</span></div>
         <h3>{{ issue.title }}</h3>
-        {% if issue.entities.market_domains %}<p class="tags">{% for item in issue.entities.market_domains %}<span>#{{ item }}</span>{% endfor %}</p>{% endif %}
-        <div class="evidence-grid">
+        {% if issue.entities.market_domains %}<p class="impact-label"><strong>연결 영역</strong>{% for item in issue.entities.market_domains %}<span>{{ domain_labels[item] }}</span>{% endfor %}</p>{% endif %}
+        <div class="evidence-flow">
           {% for block in issue.blocks %}
-          <div class="evidence evidence-{{ block.kind.value }}">
-            <strong>{{ block.label }}</strong><p>{{ block.text }}</p><small>확실성 {{ block.certainty.value }}</small>
-          </div>
+          <section class="evidence evidence-{{ block.kind.value }}">
+            <div class="evidence-label">
+              {% if block.kind.value == 'fact' %}<span>●</span><strong>확인된 흐름</strong>
+              {% elif block.kind.value == 'official_claim' %}<span>■</span><strong>공식 입장</strong>
+              {% elif block.kind.value == 'interpretation' %}<span>◆</span><strong>이렇게 연결됩니다</strong>
+              {% else %}<span>→</span><strong>다음 가능성</strong>{% endif %}
+              <small>확실성 {{ certainty_labels[block.certainty.value] }}</small>
+            </div>
+            <p>{{ block.text }}</p>
+          </section>
           {% endfor %}
         </div>
-        <div class="watch"><strong>다음 확인</strong><ul>{% for item in issue.watch_variables %}<li>{{ item }}</li>{% endfor %}</ul></div>
-        {% if issue.sources %}<details><summary>근거 기사 {{ issue.sources | length }}건</summary><ul>{% for source in issue.sources %}<li><a href="{{ source.url }}" rel="noopener noreferrer">{{ source.title }}</a> <small>{{ source.source }}</small></li>{% endfor %}</ul></details>{% endif %}
+        <div class="watch"><strong>다음에 볼 것</strong><p>{{ issue.watch_variables | join(' · ') }}</p></div>
+        {% if issue.sources %}<details class="sources"><summary>근거 기사 {{ issue.sources | length }}개 보기</summary><ul>{% for source in issue.sources %}<li><a href="{{ source.url }}" rel="noopener noreferrer">{{ source.title }}</a><small>{{ source.source }}</small></li>{% endfor %}</ul></details>{% endif %}
       </article>
       {% else %}<p>분석 가능한 핵심 이슈가 없습니다.</p>{% endfor %}
     </section>
 
     <section aria-labelledby="currents-title">
-      <div class="section-heading"><span>02</span><h2 id="currents-title">요즘 흐름</h2></div>
+      <div class="section-heading secondary"><p>한 걸음 더</p><h2 id="currents-title">요즘 흐름</h2></div>
       <div class="current-grid">
       {% for issue in brief.currents %}
-        <article><p class="eyebrow">{{ issue.category }} · {{ issue.active_days }}일</p><h3>{{ issue.title }}</h3><p>{{ issue.blocks[0].text }}</p></article>
+        <article><p class="current-meta">{{ issue.category }} · {{ issue.active_days }}일 포착</p><h3>{{ issue.title }}</h3><p>{{ issue.blocks[0].text }}</p></article>
       {% else %}<p>이번 주에는 기준을 충족한 별도 흐름이 없습니다.</p>{% endfor %}
       </div>
     </section>
 
-    <aside class="method"><strong>읽는 법</strong><p>{{ brief.methodology_note }}</p></aside>
+    <aside class="method"><strong>이 브리핑을 읽는 법</strong><p>{{ brief.methodology_note }}</p></aside>
   </main>
-  <footer><div class="shell"><a href="/sunday-radar/archive.html">Archive</a><span> · Independent weekly briefing</span></div></footer>
+  <footer><div class="shell"><a href="/sunday-radar/archive.html">지난 브리핑 보기</a><span>Sunday Radar</span></div></footer>
 </body>
 </html>

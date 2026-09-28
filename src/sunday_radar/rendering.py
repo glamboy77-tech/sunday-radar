@@ -10,6 +10,19 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from sunday_radar.domain import WeeklyBrief
 
+DOMAIN_LABELS = {
+    "stocks": "주식",
+    "fx": "환율",
+    "rates": "금리",
+    "crypto": "코인",
+    "real_estate": "부동산",
+    "prices": "물가",
+    "jobs": "일자리",
+    "daily_life": "생활",
+}
+
+CERTAINTY_LABELS = {"high": "높음", "medium": "중간", "low": "낮음"}
+
 
 def content_hash(brief: WeeklyBrief) -> str:
     payload = brief.model_dump(mode="json", exclude={"generated_at"})
@@ -29,7 +42,12 @@ def render_site(brief: WeeklyBrief, output_dir: Path, template_dir: Path) -> Pat
     issue_path.parent.mkdir(parents=True, exist_ok=True)
     assets = output_dir / "assets"
     assets.mkdir(parents=True, exist_ok=True)
-    context = {"brief": brief, "issue_path": issue_rel.as_posix()}
+    context = {
+        "brief": brief,
+        "issue_path": issue_rel.as_posix(),
+        "domain_labels": DOMAIN_LABELS,
+        "certainty_labels": CERTAINTY_LABELS,
+    }
     html = env.get_template("issue.html.j2").render(**context)
     issue_path.write_text(html, encoding="utf-8")
     (output_dir / "index.html").write_text(html, encoding="utf-8")

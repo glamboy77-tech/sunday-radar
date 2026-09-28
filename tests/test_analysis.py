@@ -15,6 +15,7 @@ def test_build_brief_separates_evidence_and_extracts_domains() -> None:
     assert {block.kind.value for block in rates.blocks} == {"fact", "interpretation", "scenario"}
     assert {"rates", "fx"}.issubset(rates.entities.market_domains)
     assert rates.active_days == 1
+    assert len(brief.issues) <= 3
 
 
 def test_single_token_title_uses_reason_for_context() -> None:

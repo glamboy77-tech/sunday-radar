@@ -1,3 +1,4 @@
+import re
 from datetime import date
 from pathlib import Path
 
@@ -17,6 +18,11 @@ def test_render_site_and_html_checks(tmp_path: Path) -> None:
     assert (tmp_path / "archive.html").exists()
     assert check_html(tmp_path) == []
     assert "javascript:" not in issue.read_text(encoding="utf-8")
+    html = issue.read_text(encoding="utf-8")
+    assert "이번 주,<br>이것부터 보세요" in html
+    assert "첫 이슈부터 읽기" in html
+    assert re.search(r"RADAR\s+\d", html) is None
+    assert "#rates" not in html
     assert content_hash(brief) == content_hash(brief.model_copy())
 
 

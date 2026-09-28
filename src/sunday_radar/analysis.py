@@ -281,13 +281,13 @@ def build_brief(days: list[DailyInput], as_of: date) -> WeeklyBrief:
         issue
         for issue in issues
         if issue.sources and issue.category in {"정치", "국제", "경제/거시"}
-    ][:5]
+    ][:3]
     if len(primary) < 3:
         primary_ids = {issue.issue_id for issue in primary}
         primary.extend(
             issue for issue in issues if issue.sources and issue.issue_id not in primary_ids
         )
-        primary = primary[:5]
+        primary = primary[:3]
     primary_ids = {issue.issue_id for issue in primary}
     currents = [
         issue
