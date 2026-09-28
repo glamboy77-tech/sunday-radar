@@ -28,17 +28,18 @@ a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 3px; 
 .brand { font-size: .95rem; font-weight: 950; letter-spacing: .1em; text-decoration: none; }
 .archive-link { color: var(--muted); font-size: .82rem; }
 
-.hero { padding: 54px 0 42px; border-bottom: 3px solid var(--ink); }
+.hero { padding: 64px 0 52px; border-bottom: 1px solid var(--line); }
 .edition { margin: 0 0 28px; color: var(--muted); font-size: .82rem; font-weight: 700; }
 .hero-label { margin: 0 0 8px; color: var(--signal); font-size: .84rem; font-weight: 900; }
 h1 {
   margin: 0;
   font-family: Georgia, "Noto Serif KR", serif;
-  font-size: clamp(2.55rem, 9vw, 4.8rem);
-  line-height: 1.04;
+  max-width: 720px;
+  font-size: clamp(2.5rem, 8vw, 4.6rem);
+  line-height: 1.08;
   letter-spacing: -.055em;
 }
-.lede { max-width: 610px; margin: 20px 0 28px; color: #38413b; font-size: 1.06rem; }
+.lede { max-width: 640px; margin: 24px 0 34px; color: #38413b; font-family: Georgia, "Noto Serif KR", serif; font-size: 1.12rem; line-height: 1.8; }
 .notice { display: inline-block; margin-top: 18px; padding: 7px 10px; background: #fff0c7; font-size: .84rem; }
 .issue-index { border-top: 1px solid var(--line); }
 .issue-index a {
@@ -54,12 +55,19 @@ h1 {
 .issue-index span { display: -webkit-box; overflow: hidden; font-weight: 750; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .start-link { display: inline-block; margin-top: 22px; color: var(--green); font-size: .9rem; font-weight: 800; }
 
+.editors-note { margin: 64px 0 74px; padding: 34px 38px 36px; border: 1px solid var(--line); background: var(--card); }
+.note-label, .chapter-kicker { margin: 0 0 11px; color: var(--signal); font-size: .72rem; font-weight: 950; letter-spacing: .12em; }
+.editors-note h2 { font-size: 2.15rem; }
+.editors-note > p:not(.note-label) { max-width: 620px; margin: 20px 0 0; color: #3d453f; font-family: Georgia, "Noto Serif KR", serif; font-size: 1rem; line-height: 1.85; }
+
 .section-heading { margin: 58px 0 8px; }
 .section-heading p { margin: 0 0 5px; color: var(--signal); font-size: .78rem; font-weight: 900; }
 h2 { margin: 0; font-family: Georgia, "Noto Serif KR", serif; font-size: 2rem; line-height: 1.18; letter-spacing: -.035em; }
 .section-heading.secondary { padding-top: 12px; border-top: 3px solid var(--ink); }
 
-.issue-card { scroll-margin-top: 20px; padding: 38px 0 46px; border-bottom: 1px solid var(--line); }
+.story { position: relative; }
+.issue-card { scroll-margin-top: 20px; padding: 54px 0 50px; }
+.chapter-kicker { margin-bottom: 18px; }
 .issue-number { display: flex; gap: 10px; align-items: center; margin-bottom: 13px; }
 .issue-number b { color: var(--signal); font-size: 1.2rem; }
 .issue-number span { color: var(--muted); font-size: .8rem; font-weight: 700; }
@@ -87,11 +95,16 @@ h3 { margin: 0; font-family: Georgia, "Noto Serif KR", serif; font-size: 1.65rem
 .sources a { font-size: .88rem; }
 .sources small { display: block; margin-top: 2px; color: var(--muted); }
 
+.story-bridge { margin: 4px 0 10px; padding: 28px 30px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); text-align: center; }
+.story-bridge span { color: var(--signal); font-size: .7rem; font-weight: 900; letter-spacing: .1em; }
+.story-bridge p { max-width: 540px; margin: 10px auto 0; font-family: Georgia, "Noto Serif KR", serif; font-size: 1.08rem; line-height: 1.7; }
+
 .current-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 22px; }
 .current-grid article { padding: 20px; border: 1px solid var(--line); background: var(--card); }
 .current-grid h3 { margin-top: 8px; font-size: 1.22rem; }
 .current-grid article > p:last-child { margin-bottom: 0; color: #424842; font-size: .88rem; }
 .current-meta { margin: 0; color: var(--muted); font-size: .74rem; font-weight: 700; }
+.section-intro { max-width: 580px; margin: 16px 0 24px; color: var(--muted); }
 .method { margin: 58px 0 28px; padding: 20px; border: 1px solid var(--line); color: var(--muted); font-size: .85rem; }
 .method p { margin-bottom: 0; }
 footer { margin-top: 48px; padding: 28px 0; color: var(--paper); background: var(--ink); }
@@ -103,13 +116,18 @@ footer span { color: #abb3ad; }
   .shell { width: min(100% - 32px, 760px); }
   .hero { padding: 38px 0 34px; }
   .edition { margin-bottom: 22px; }
-  h1 { font-size: clamp(2.45rem, 13vw, 3.45rem); }
-  .lede { margin: 17px 0 24px; font-size: .98rem; }
+  h1 { font-size: clamp(2.35rem, 12vw, 3.35rem); }
+  .lede { margin: 20px 0 27px; font-size: 1rem; line-height: 1.75; }
+  .editors-note { margin: 42px -4px 54px; padding: 27px 21px 29px; }
+  .editors-note h2 { font-size: 1.72rem; }
+  .editors-note > p:not(.note-label) { font-size: .95rem; }
   .section-heading { margin-top: 46px; }
   h2 { font-size: 1.7rem; }
-  .issue-card { padding: 32px 0 38px; }
+  .issue-card { padding: 42px 0 39px; }
   h3 { font-size: 1.42rem; }
   .evidence p { font-size: .95rem; }
+  .story-bridge { margin: 0 -4px; padding: 24px 17px; }
+  .story-bridge p { font-size: 1rem; }
   .current-grid { grid-template-columns: 1fr; }
   .current-grid article { padding: 17px; }
   footer .shell { display: grid; }

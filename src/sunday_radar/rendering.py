@@ -23,6 +23,28 @@ DOMAIN_LABELS = {
 
 CERTAINTY_LABELS = {"high": "높음", "medium": "중간", "low": "낮음"}
 
+CHAPTER_KICKERS = ("첫 번째 장면", "두 번째 장면", "마지막 장면")
+
+
+def _transitions(brief: WeeklyBrief) -> list[str]:
+    transitions: list[str] = []
+    for current, following in zip(brief.issues, brief.issues[1:], strict=False):
+        current_domains = current.entities.market_domains
+        following_domains = following.entities.market_domains
+        shared = next((item for item in current_domains if item in following_domains), None)
+        if shared:
+            subject = DOMAIN_LABELS[shared]
+            transitions.append(
+                f"이 흐름은 {subject}에서 멈추지 않습니다. 이제 시선을 "
+                f"「{following.title}」로 옮겨보겠습니다."
+            )
+        else:
+            transitions.append(
+                f"한편 시장의 시선은 또 다른 장면으로 이동합니다. 다음은 "
+                f"「{following.title}」입니다."
+            )
+    return transitions
+
 
 def content_hash(brief: WeeklyBrief) -> str:
     payload = brief.model_dump(mode="json", exclude={"generated_at"})
@@ -47,6 +69,8 @@ def render_site(brief: WeeklyBrief, output_dir: Path, template_dir: Path) -> Pat
         "issue_path": issue_rel.as_posix(),
         "domain_labels": DOMAIN_LABELS,
         "certainty_labels": CERTAINTY_LABELS,
+        "chapter_kickers": CHAPTER_KICKERS,
+        "transitions": _transitions(brief),
     }
     html = env.get_template("issue.html.j2").render(**context)
     issue_path.write_text(html, encoding="utf-8")

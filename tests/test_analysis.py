@@ -16,6 +16,10 @@ def test_build_brief_separates_evidence_and_extracts_domains() -> None:
     assert {"rates", "fx"}.issubset(rates.entities.market_domains)
     assert rates.active_days == 1
     assert len(brief.issues) <= 3
+    assert all(issue.entities.market_domains for issue in brief.issues)
+    assert brief.headline != brief.issues[0].title
+    assert brief.issues[0].title in brief.overview
+    assert brief.issues[0].category == "경제/거시"
 
 
 def test_single_token_title_uses_reason_for_context() -> None:

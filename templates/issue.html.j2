@@ -17,24 +17,32 @@
   <main class="shell">
     <section class="hero">
       <p class="edition">{{ brief.week_ending }} · 약 {{ brief.reading_minutes }}분 · 핵심 이슈 {{ brief.issues | length }}개</p>
-      <p class="hero-label">이번 주 판세</p>
-      <h1>이번 주,<br>이것부터 보세요</h1>
-      <p class="lede">복잡한 뉴스에서 시장과 생활로 이어질 흐름만 골랐습니다.</p>
+      <p class="hero-label">이번 주의 이야기</p>
+      <h1>{{ brief.headline }}</h1>
+      <p class="lede">{{ brief.overview }}</p>
       {% if brief.issues %}
       <nav class="issue-index" aria-label="핵심 이슈 바로가기">
         {% for issue in brief.issues[:3] %}
         <a href="#issue-{{ loop.index }}"><b>{{ '%02d' | format(loop.index) }}</b><span>{{ issue.title }}</span></a>
         {% endfor %}
       </nav>
-      <a class="start-link" href="#board-title">첫 이슈부터 읽기 ↓</a>
+      <a class="start-link" href="#editors-note">이야기 시작하기 ↓</a>
       {% endif %}
       {% if brief.missing_days %}<p class="notice">입력 누락일: {{ brief.missing_days | join(', ') }}</p>{% endif %}
     </section>
 
-    <section aria-labelledby="board-title">
-      <div class="section-heading"><p>핵심 이슈</p><h2 id="board-title">왜 중요한지까지<br>한 번에 읽기</h2></div>
+    <section class="editors-note" id="editors-note" aria-labelledby="editors-note-title">
+      <p class="note-label">EDITOR'S NOTE</p>
+      <h2 id="editors-note-title">뉴스 세 편을<br>하나의 흐름으로 읽는 법</h2>
+      {% if brief.issues | length >= 3 %}<p>첫 장면은 「{{ brief.issues[0].title }}」입니다. 여기서 출발해 「{{ brief.issues[1].title }}」를 지나, 마지막에는 「{{ brief.issues[2].title }}」가 우리 생활에 남기는 질문을 살펴봅니다.</p>{% endif %}
+      <p>아래의 세 장면은 확인된 사실에서 출발합니다. 해석은 사실과 구분하고, 아직 오지 않은 일은 가능성으로만 남겨두었습니다.</p>
+    </section>
+
+    <section class="story" aria-labelledby="board-title">
+      <div class="section-heading"><p>THE WEEKLY STORY</p><h2 id="board-title">이번 주를 만든<br>세 개의 장면</h2></div>
       {% for issue in brief.issues %}
       <article class="issue-card" id="issue-{{ loop.index }}">
+        <p class="chapter-kicker">{{ chapter_kickers[loop.index0] }}</p>
         <div class="issue-number"><b>{{ '%02d' | format(loop.index) }}</b><span>{{ issue.category }} · 이번 주 {{ issue.active_days }}일 포착</span></div>
         <h3>{{ issue.title }}</h3>
         {% if issue.entities.market_domains %}<p class="impact-label"><strong>연결 영역</strong>{% for item in issue.entities.market_domains %}<span>{{ domain_labels[item] }}</span>{% endfor %}</p>{% endif %}
@@ -55,11 +63,13 @@
         <div class="watch"><strong>다음에 볼 것</strong><p>{{ issue.watch_variables | join(' · ') }}</p></div>
         {% if issue.sources %}<details class="sources"><summary>근거 기사 {{ issue.sources | length }}개 보기</summary><ul>{% for source in issue.sources %}<li><a href="{{ source.url }}" rel="noopener noreferrer">{{ source.title }}</a><small>{{ source.source }}</small></li>{% endfor %}</ul></details>{% endif %}
       </article>
+      {% if not loop.last %}<aside class="story-bridge"><span>계속 읽기</span><p>{{ transitions[loop.index0] }}</p></aside>{% endif %}
       {% else %}<p>분석 가능한 핵심 이슈가 없습니다.</p>{% endfor %}
     </section>
 
     <section aria-labelledby="currents-title">
-      <div class="section-heading secondary"><p>한 걸음 더</p><h2 id="currents-title">요즘 흐름</h2></div>
+      <div class="section-heading secondary"><p>AFTERWORD</p><h2 id="currents-title">본편 뒤에 남은<br>작은 신호들</h2></div>
+      <p class="section-intro">큰 흐름으로 묶이지 않았지만, 다음 주의 이야기가 될 수 있는 장면들입니다.</p>
       <div class="current-grid">
       {% for issue in brief.currents %}
         <article><p class="current-meta">{{ issue.category }} · {{ issue.active_days }}일 포착</p><h3>{{ issue.title }}</h3><p>{{ issue.blocks[0].text }}</p></article>

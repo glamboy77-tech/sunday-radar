@@ -90,6 +90,27 @@ IMPACT_COPY = {
     ),
 }
 
+DOMAIN_NARRATIVE = {
+    "stocks": ("기업의 기대가 시장의 온도를 바꾸는 주", "기업과 투자 심리"),
+    "fx": ("바깥의 변화가 원화와 생활비로 번지는 주", "환율과 생활비"),
+    "rates": ("금리의 방향이 자산과 생활의 온도를 바꾸는 주", "금리와 가계의 선택"),
+    "crypto": ("유동성의 변화가 위험자산을 흔드는 주", "유동성과 위험 선호"),
+    "real_estate": ("집의 가격보다 시장의 방향을 읽어야 하는 주", "주거 시장과 가계"),
+    "prices": ("시장의 숫자가 장바구니까지 내려오는 주", "물가와 일상의 비용"),
+    "jobs": ("기업의 결정이 일자리의 풍경을 바꾸는 주", "고용과 가계 소득"),
+    "daily_life": ("정책과 시장의 변화가 일상에 닿는 주", "시장과 일상의 변화"),
+}
+NARRATIVE_DOMAIN_PRIORITY = (
+    "rates",
+    "real_estate",
+    "prices",
+    "fx",
+    "jobs",
+    "stocks",
+    "crypto",
+    "daily_life",
+)
+
 
 def _tokens(value: str) -> set[str]:
     return {
@@ -252,6 +273,41 @@ def _make_issue(
     )
 
 
+def _select_primary(issues: list[Issue]) -> list[Issue]:
+    candidates = [issue for issue in issues if issue.sources and issue.entities.market_domains]
+    if not candidates:
+        return []
+    macro = next((issue for issue in candidates if issue.category == "경제/거시"), candidates[0])
+    selected = [macro]
+    narrative_candidates = [
+        issue
+        for issue in candidates
+        if issue.issue_id != macro.issue_id and issue.category in {"경제/거시", "부동산"}
+    ]
+    remaining = (
+        narrative_candidates
+        if len(narrative_candidates) >= 2
+        else [issue for issue in candidates if issue.issue_id != macro.issue_id]
+    )
+    while remaining and len(selected) < 3:
+        known_domains = {
+            domain
+            for selected_issue in selected
+            for domain in selected_issue.entities.market_domains
+        }
+        next_issue = max(
+            remaining,
+            key=lambda issue: (
+                issue.score + 12 * len(known_domains & set(issue.entities.market_domains)),
+                issue.active_days,
+                issue.title,
+            ),
+        )
+        selected.append(next_issue)
+        remaining.remove(next_issue)
+    return selected
+
+
 def build_brief(days: list[DailyInput], as_of: date) -> WeeklyBrief:
     article_map = {article.stable_id: article for day in days for article in day.articles}
     people = {name for day in days for name in day.people}
@@ -277,15 +333,15 @@ def build_brief(days: list[DailyInput], as_of: date) -> WeeklyBrief:
         (_make_issue(cluster, article_map, people) for cluster in clusters),
         key=lambda item: (-item.score, -item.active_days, item.title),
     )
-    primary = [
-        issue
-        for issue in issues
-        if issue.sources and issue.category in {"정치", "국제", "경제/거시"}
-    ][:3]
+    primary = _select_primary(issues)
     if len(primary) < 3:
         primary_ids = {issue.issue_id for issue in primary}
         primary.extend(
-            issue for issue in issues if issue.sources and issue.issue_id not in primary_ids
+            issue
+            for issue in issues
+            if issue.sources
+            and issue.category in {"정치", "국제", "경제/거시"}
+            and issue.issue_id not in primary_ids
         )
         primary = primary[:3]
     primary_ids = {issue.issue_id for issue in primary}
@@ -299,7 +355,25 @@ def build_brief(days: list[DailyInput], as_of: date) -> WeeklyBrief:
     expected = [as_of - timedelta(days=offset) for offset in range(6, -1, -1)]
     missing = [day for day in expected if day not in available]
     reading_minutes = max(3, min(5, round((len(primary) * 180 + len(currents) * 90 + 300) / 500)))
-    headline = primary[0].title if primary else "분석 가능한 주간 이슈가 부족합니다"
+    primary_domains = {domain for issue in primary for domain in issue.entities.market_domains}
+    lead_domain = next(
+        (domain for domain in NARRATIVE_DOMAIN_PRIORITY if domain in primary_domains), "daily_life"
+    )
+    headline, narrative_subject = DOMAIN_NARRATIVE[lead_domain]
+    issue_titles = [issue.title for issue in primary]
+    if len(issue_titles) >= 2:
+        overview = (
+            f"이번 주에는 「{issue_titles[0]}」에서 시작해 「{issue_titles[1]}」로 이어지는 "
+            f"흐름을 따라갑니다. 서로 다른 뉴스처럼 보이지만, {narrative_subject}이라는 "
+            "하나의 질문으로 묶어 보면 다음 장면이 선명해집니다."
+        )
+    elif issue_titles:
+        overview = (
+            f"이번 주에는 「{issue_titles[0]}」에서 출발해 {narrative_subject}에 닿는 "
+            "변화를 천천히 살펴봅니다."
+        )
+    else:
+        overview = "이번 주에는 하나의 흐름으로 엮을 수 있는 자료가 충분하지 않습니다."
     return WeeklyBrief(
         week_ending=as_of,
         window_start=expected[0],
@@ -308,10 +382,7 @@ def build_brief(days: list[DailyInput], as_of: date) -> WeeklyBrief:
         input_days=available,
         missing_days=missing,
         headline=headline,
-        overview=(
-            f"최근 7일 중 {len(available)}일의 Morning News에서 반복성과 "
-            "시장·생활 연결 가능성을 기준으로 선별했습니다."
-        ),
+        overview=overview,
         issues=primary,
         currents=currents,
         reading_minutes=reading_minutes,
