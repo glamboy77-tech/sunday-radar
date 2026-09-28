@@ -1,0 +1,11 @@
+[Unit]
+Description=Generate the Sunday Radar weekly briefing
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/data/projects/sunday-radar
+EnvironmentFile=-/data/projects/sunday-radar/.env
+ExecStart=/data/projects/sunday-radar/.venv/bin/sunday-radar build
+
+# This example is intentionally not installed or enabled automatically.

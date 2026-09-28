@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sunday-radar"
+version = "0.1.0"
+description = "A weekly Korean context briefing connecting public affairs to markets and daily life"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+dependencies = [
+  "alembic>=1.13,<2",
+  "beautifulsoup4>=4.12,<5",
+  "httpx>=0.27,<1",
+  "jinja2>=3.1,<4",
+  "pydantic>=2.8,<3",
+  "PyYAML>=6,<7",
+  "sqlalchemy>=2.0,<3",
+  "typer>=0.12,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "mypy>=1.11,<2",
+  "pytest>=8,<9",
+  "pytest-cov>=5,<7",
+  "respx>=0.21,<1",
+  "ruff>=0.6,<1",
+  "types-beautifulsoup4>=4",
+  "types-PyYAML>=6",
+]
+
+[project.scripts]
+sunday-radar = "sunday_radar.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sunday_radar"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+addopts = "-q --strict-markers --disable-warnings"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["sunday_radar"]

@@ -1,0 +1,93 @@
+from __future__ import annotations
+
+from datetime import date, datetime
+from enum import StrEnum
+
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+
+
+class EvidenceType(StrEnum):
+    FACT = "fact"
+    OFFICIAL_CLAIM = "official_claim"
+    INTERPRETATION = "interpretation"
+    SCENARIO = "scenario"
+
+
+class Certainty(StrEnum):
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class Article(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    stable_id: str
+    title: str
+    url: str
+    source: str
+    published_at: datetime | None = None
+    description: str = ""
+    section: str = "기타"
+    report_date: date
+
+
+class TrendSignal(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    keyword: str
+    reason: str = ""
+    score: float = 0.0
+    categories: list[str] = Field(default_factory=list)
+    report_date: date
+    article_ids: list[str] = Field(default_factory=list)
+
+
+class EntitySet(BaseModel):
+    people: list[str] = Field(default_factory=list)
+    places: list[str] = Field(default_factory=list)
+    policies: list[str] = Field(default_factory=list)
+    companies: list[str] = Field(default_factory=list)
+    market_domains: list[str] = Field(default_factory=list)
+
+
+class EvidenceBlock(BaseModel):
+    kind: EvidenceType
+    label: str
+    text: str
+    certainty: Certainty
+
+
+class SourceLink(BaseModel):
+    title: str
+    source: str
+    url: HttpUrl
+
+
+class Issue(BaseModel):
+    issue_id: str
+    title: str
+    category: str
+    score: float
+    first_seen: date
+    last_seen: date
+    active_days: int
+    entities: EntitySet
+    blocks: list[EvidenceBlock]
+    watch_variables: list[str]
+    sources: list[SourceLink]
+
+
+class WeeklyBrief(BaseModel):
+    week_ending: date
+    window_start: date
+    window_end: date
+    generated_at: datetime
+    input_days: list[date]
+    missing_days: list[date]
+    headline: str
+    overview: str
+    issues: list[Issue]
+    currents: list[Issue]
+    reading_minutes: int
+    methodology_note: str

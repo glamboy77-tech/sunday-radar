@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="정치·정책과 시장·생활의 연결을 읽는 주간 브리핑">
+  <title>Sunday Radar — {{ brief.week_ending }}</title>
+  <link rel="stylesheet" href="{{ '/sunday-radar/assets/style.css' }}">
+</head>
+<body>
+  <header class="masthead">
+    <div class="shell">
+      <a class="brand" href="/sunday-radar/">SUNDAY RADAR</a>
+      <p>정치와 정책 다음에 움직이는 것을 봅니다.</p>
+    </div>
+  </header>
+  <main class="shell">
+    <section class="hero">
+      <p class="eyebrow">WEEK ENDING {{ brief.week_ending }} · QUICK READ {{ brief.reading_minutes }} MIN</p>
+      <h1>{{ brief.headline }}</h1>
+      <p class="lede">{{ brief.overview }}</p>
+      {% if brief.missing_days %}<p class="notice">입력 누락일: {{ brief.missing_days | join(', ') }}</p>{% endif %}
+    </section>
+
+    <section aria-labelledby="board-title">
+      <div class="section-heading"><span>01</span><h2 id="board-title">이번 주 판세</h2></div>
+      {% for issue in brief.issues %}
+      <article class="issue-card">
+        <div class="issue-meta"><span>{{ issue.category }}</span><span>{{ issue.active_days }}일 등장</span><span>RADAR {{ issue.score | round | int }}</span></div>
+        <h3>{{ issue.title }}</h3>
+        {% if issue.entities.market_domains %}<p class="tags">{% for item in issue.entities.market_domains %}<span>#{{ item }}</span>{% endfor %}</p>{% endif %}
+        <div class="evidence-grid">
+          {% for block in issue.blocks %}
+          <div class="evidence evidence-{{ block.kind.value }}">
+            <strong>{{ block.label }}</strong><p>{{ block.text }}</p><small>확실성 {{ block.certainty.value }}</small>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="watch"><strong>다음 확인</strong><ul>{% for item in issue.watch_variables %}<li>{{ item }}</li>{% endfor %}</ul></div>
+        {% if issue.sources %}<details><summary>근거 기사 {{ issue.sources | length }}건</summary><ul>{% for source in issue.sources %}<li><a href="{{ source.url }}" rel="noopener noreferrer">{{ source.title }}</a> <small>{{ source.source }}</small></li>{% endfor %}</ul></details>{% endif %}
+      </article>
+      {% else %}<p>분석 가능한 핵심 이슈가 없습니다.</p>{% endfor %}
+    </section>
+
+    <section aria-labelledby="currents-title">
+      <div class="section-heading"><span>02</span><h2 id="currents-title">요즘 흐름</h2></div>
+      <div class="current-grid">
+      {% for issue in brief.currents %}
+        <article><p class="eyebrow">{{ issue.category }} · {{ issue.active_days }}일</p><h3>{{ issue.title }}</h3><p>{{ issue.blocks[0].text }}</p></article>
+      {% else %}<p>이번 주에는 기준을 충족한 별도 흐름이 없습니다.</p>{% endfor %}
+      </div>
+    </section>
+
+    <aside class="method"><strong>읽는 법</strong><p>{{ brief.methodology_note }}</p></aside>
+  </main>
+  <footer><div class="shell"><a href="/sunday-radar/archive.html">Archive</a><span> · Independent weekly briefing</span></div></footer>
+</body>
+</html>

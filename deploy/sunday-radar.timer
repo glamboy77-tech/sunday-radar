@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Sunday Radar every Sunday at 20:30 KST
+
+[Timer]
+OnCalendar=Sun *-*-* 20:30:00 Asia/Seoul
+Persistent=true
+Unit=sunday-radar.service
+
+[Install]
+WantedBy=timers.target
+
+# This example is intentionally not installed or enabled automatically.
