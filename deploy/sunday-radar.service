@@ -6,6 +6,7 @@ After=network-online.target
 Type=oneshot
 WorkingDirectory=/data/projects/sunday-radar
 EnvironmentFile=-/data/projects/sunday-radar/.env
+ExecStartPre=/data/projects/sunday-radar/.venv/bin/sunday-radar collect-sources
 ExecStart=/data/projects/sunday-radar/.venv/bin/sunday-radar build
 
 # This example is intentionally not installed or enabled automatically.

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from enum import StrEnum
+from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
@@ -30,6 +31,7 @@ class Article(BaseModel):
     description: str = ""
     section: str = "기타"
     report_date: date
+    source_kind: str = "unknown"
 
 
 class TrendSignal(BaseModel):
@@ -41,6 +43,17 @@ class TrendSignal(BaseModel):
     categories: list[str] = Field(default_factory=list)
     report_date: date
     article_ids: list[str] = Field(default_factory=list)
+    source_kind: str = "unknown"
+
+
+class SourceDay(BaseModel):
+    source_kind: str
+    report_date: date
+    files: list[Path]
+    articles: list[Article]
+    trends: list[TrendSignal]
+    people: dict[str, str] = Field(default_factory=dict)
+    section_summaries: dict[str, str] = Field(default_factory=dict)
 
 
 class EntitySet(BaseModel):
@@ -62,6 +75,7 @@ class SourceLink(BaseModel):
     title: str
     source: str
     url: HttpUrl
+    source_kind: str = "unknown"
 
 
 class Issue(BaseModel):
@@ -85,9 +99,11 @@ class WeeklyBrief(BaseModel):
     generated_at: datetime
     input_days: list[date]
     missing_days: list[date]
+    source_kinds: list[str]
     headline: str
     overview: str
     issues: list[Issue]
+    official_updates: list[Issue]
     currents: list[Issue]
     reading_minutes: int
     methodology_note: str

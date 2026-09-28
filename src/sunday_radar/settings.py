@@ -9,6 +9,7 @@ from pathlib import Path
 class Settings:
     project_root: Path
     morningnews_root: Path
+    bank_of_korea_cache_dir: Path
     database_path: Path
     output_dir: Path
     public_base_url: str
@@ -22,6 +23,12 @@ class Settings:
             project_root=project_root,
             morningnews_root=Path(
                 os.getenv("SUNDAY_RADAR_MORNINGNEWS_ROOT", "/data/projects/morningnews")
+            ),
+            bank_of_korea_cache_dir=Path(
+                os.getenv(
+                    "SUNDAY_RADAR_BANK_OF_KOREA_CACHE_DIR",
+                    project_root / "var" / "sources" / "bank_of_korea",
+                )
             ),
             database_path=Path(
                 os.getenv("SUNDAY_RADAR_DATABASE_PATH", project_root / "var" / "sunday-radar.db")

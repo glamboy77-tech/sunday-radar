@@ -16,7 +16,7 @@
   </header>
   <main class="shell">
     <section class="hero">
-      <p class="edition">{{ brief.week_ending }} · 약 {{ brief.reading_minutes }}분 · 핵심 이슈 {{ brief.issues | length }}개</p>
+      <p class="edition">{{ brief.week_ending }} · 약 {{ brief.reading_minutes }}분 · 핵심 이슈 {{ brief.issues | length }}개 · 데이터 소스 {{ brief.source_kinds | length }}종</p>
       <p class="hero-label">이번 주의 이야기</p>
       <h1>{{ brief.headline }}</h1>
       <p class="lede">{{ brief.overview }}</p>
@@ -61,11 +61,28 @@
           {% endfor %}
         </div>
         <div class="watch"><strong>다음에 볼 것</strong><p>{{ issue.watch_variables | join(' · ') }}</p></div>
-        {% if issue.sources %}<details class="sources"><summary>근거 기사 {{ issue.sources | length }}개 보기</summary><ul>{% for source in issue.sources %}<li><a href="{{ source.url }}" rel="noopener noreferrer">{{ source.title }}</a><small>{{ source.source }}</small></li>{% endfor %}</ul></details>{% endif %}
+        {% if issue.sources %}<details class="sources"><summary>근거 자료 {{ issue.sources | length }}개 보기</summary><ul>{% for source in issue.sources %}<li><a href="{{ source.url }}" rel="noopener noreferrer">{{ source.title }}</a><small>{{ source.source }}{% if source.source_kind == 'bank_of_korea' %} · 공식 자료{% endif %}</small></li>{% endfor %}</ul></details>{% endif %}
       </article>
       {% if not loop.last %}<aside class="story-bridge"><span>계속 읽기</span><p>{{ transitions[loop.index0] }}</p></aside>{% endif %}
       {% else %}<p>분석 가능한 핵심 이슈가 없습니다.</p>{% endfor %}
     </section>
+
+    {% if brief.official_updates %}
+    <section aria-labelledby="official-title">
+      <div class="section-heading secondary"><p>OFFICIAL DESK</p><h2 id="official-title">이번 주 확인된<br>공식 1차 자료</h2></div>
+      <p class="section-intro">핵심 이야기와 직접 같은 주제가 아닌 자료는 억지로 연결하지 않고 별도로 남깁니다.</p>
+      <div class="current-grid">
+      {% for issue in brief.official_updates %}
+        <article>
+          <p class="current-meta">{{ issue.sources[0].source }} · {{ issue.last_seen }}</p>
+          <h3>{{ issue.title }}</h3>
+          <p>{{ issue.blocks[0].text }}</p>
+          <a href="{{ issue.sources[0].url }}" rel="noopener noreferrer">공식 원문 보기</a>
+        </article>
+      {% endfor %}
+      </div>
+    </section>
+    {% endif %}
 
     <section aria-labelledby="currents-title">
       <div class="section-heading secondary"><p>AFTERWORD</p><h2 id="currents-title">본편 뒤에 남은<br>작은 신호들</h2></div>

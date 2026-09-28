@@ -7,7 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from sunday_radar.domain import Article, TrendSignal
+from sunday_radar.domain import Article, SourceDay, TrendSignal
 from sunday_radar.normalization import canonical_url, normalize_text, stable_hash
 
 
@@ -30,15 +30,6 @@ class RawTrend(BaseModel):
     categories: list[str] = Field(default_factory=list)
     representative_article: RawArticle | None = None
     related_articles: list[RawArticle] = Field(default_factory=list)
-
-
-class DailyInput(BaseModel):
-    report_date: date
-    files: list[Path]
-    articles: list[Article]
-    trends: list[TrendSignal]
-    people: dict[str, str]
-    section_summaries: dict[str, str]
 
 
 def date_window(as_of: date, days: int = 7) -> list[date]:
@@ -78,10 +69,11 @@ def _article(raw: RawArticle, report_date: date, section: str) -> Article:
         description=raw.description.strip(),
         section=section,
         report_date=report_date,
+        source_kind="morningnews",
     )
 
 
-def load_day(root: Path, report_date: date) -> DailyInput:
+def load_day(root: Path, report_date: date) -> SourceDay:
     stamp = report_date.strftime("%Y%m%d")
     cache_dir = root / "data_cache"
     sentiment_dir = root / "sentiment_cache"
@@ -135,6 +127,7 @@ def load_day(root: Path, report_date: date) -> DailyInput:
                     categories=sorted(set(parsed_trend.categories)),
                     report_date=report_date,
                     article_ids=sorted(set(article_ids)),
+                    source_kind="morningnews",
                 )
             )
 
@@ -154,7 +147,8 @@ def load_day(root: Path, report_date: date) -> DailyInput:
         if isinstance(raw_summaries, dict):
             summaries = {str(key): str(value) for key, value in raw_summaries.items()}
 
-    return DailyInput(
+    return SourceDay(
+        source_kind="morningnews",
         report_date=report_date,
         files=sorted(files),
         articles=sorted(articles.values(), key=lambda item: item.stable_id),
@@ -164,6 +158,6 @@ def load_day(root: Path, report_date: date) -> DailyInput:
     )
 
 
-def load_window(root: Path, as_of: date) -> list[DailyInput]:
+def load_window(root: Path, as_of: date) -> list[SourceDay]:
     inputs = [load_day(root, day) for day in date_window(as_of)]
     return [daily_input for daily_input in inputs if daily_input.files]

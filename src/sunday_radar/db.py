@@ -20,7 +20,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
 
-from sunday_radar.adapters.morningnews import DailyInput
+from sunday_radar.domain import SourceDay
 
 
 class Base(DeclarativeBase):
@@ -93,7 +93,7 @@ def create_db(path: Path) -> tuple[object, Session]:
     return engine, Session(engine)
 
 
-def _daily_hash(day: DailyInput) -> str:
+def _daily_hash(day: SourceDay) -> str:
     digest = hashlib.sha256()
     for path in day.files:
         digest.update(path.name.encode())
@@ -101,11 +101,11 @@ def _daily_hash(day: DailyInput) -> str:
     return digest.hexdigest()
 
 
-def import_day(session: Session, day: DailyInput) -> bool:
+def import_day(session: Session, day: SourceDay) -> bool:
     content_hash = _daily_hash(day)
     existing = session.scalar(
         select(SourceSnapshot).where(
-            SourceSnapshot.source_kind == "morningnews",
+            SourceSnapshot.source_kind == day.source_kind,
             SourceSnapshot.report_date == day.report_date,
         )
     )
@@ -116,7 +116,7 @@ def import_day(session: Session, day: DailyInput) -> bool:
         session.flush()
 
     snapshot = SourceSnapshot(
-        source_kind="morningnews",
+        source_kind=day.source_kind,
         report_date=day.report_date,
         content_hash=content_hash,
         source_files=json.dumps([str(path) for path in day.files], ensure_ascii=False),
@@ -155,11 +155,21 @@ def import_day(session: Session, day: DailyInput) -> bool:
                 article_ids_json=json.dumps(trend.article_ids),
             )
         )
-    session.commit()
     return True
 
 
 def remove_orphan_articles(session: Session) -> None:
     used = select(ArticleOccurrence.article_id)
     session.execute(delete(ArticleRow).where(~ArticleRow.stable_id.in_(used)))
-    session.commit()
+
+
+def import_days(session: Session, days: list[SourceDay]) -> int:
+    try:
+        changed = sum(import_day(session, day) for day in days)
+        session.flush()
+        remove_orphan_articles(session)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    return changed

@@ -20,7 +20,12 @@ def preview_text(brief: WeeklyBrief, public_base_url: str) -> str:
 
 
 def send_preview(
-    session: Session, settings: Settings, brief: WeeklyBrief, *, force: bool = False
+    session: Session,
+    settings: Settings,
+    brief: WeeklyBrief,
+    *,
+    force: bool = False,
+    client: httpx.Client | None = None,
 ) -> None:
     publication = session.get(Publication, brief.week_ending)
     if publication is None:
@@ -29,15 +34,20 @@ def send_preview(
         raise RuntimeError("Telegram preview was already sent for this edition")
     if not settings.telegram_bot_token or not settings.telegram_chat_id:
         raise RuntimeError("TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are required")
-    response = httpx.post(
-        f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage",
-        json={
-            "chat_id": settings.telegram_chat_id,
-            "text": preview_text(brief, settings.public_base_url),
-            "disable_web_page_preview": False,
-        },
-        timeout=20,
-    )
-    response.raise_for_status()
+    owns_client = client is None
+    active_client = client or httpx.Client(timeout=20)
+    try:
+        response = active_client.post(
+            f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage",
+            json={
+                "chat_id": settings.telegram_chat_id,
+                "text": preview_text(brief, settings.public_base_url),
+                "disable_web_page_preview": False,
+            },
+        )
+        response.raise_for_status()
+    finally:
+        if owns_client:
+            active_client.close()
     publication.telegram_sent_at = datetime.now()
     session.commit()

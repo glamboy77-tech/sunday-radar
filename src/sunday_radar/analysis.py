@@ -4,7 +4,6 @@ import re
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
-from sunday_radar.adapters.morningnews import DailyInput
 from sunday_radar.domain import (
     Article,
     Certainty,
@@ -12,6 +11,7 @@ from sunday_radar.domain import (
     EvidenceBlock,
     EvidenceType,
     Issue,
+    SourceDay,
     SourceLink,
     TrendSignal,
     WeeklyBrief,
@@ -110,6 +110,19 @@ NARRATIVE_DOMAIN_PRIORITY = (
     "crypto",
     "daily_life",
 )
+SOURCE_KIND_LABELS = {
+    "morningnews": "Morning News",
+    "bank_of_korea": "한국은행 공식 자료",
+}
+OFFICIAL_TOPIC_ALIASES = {
+    "base_rate": ("기준금리", "통화정책방향"),
+    "balance_of_payments": ("국제수지", "경상수지"),
+    "business_sentiment": ("기업경기조사", "기업심리지수", "bsi"),
+    "consumer_sentiment": ("소비자동향조사", "소비자심리지수", "ccsi"),
+    "foreign_reserves": ("외환보유액",),
+    "household_credit": ("가계신용",),
+    "producer_prices": ("생산자물가지수", "생산자물가"),
+}
 
 
 def _tokens(value: str) -> set[str]:
@@ -130,6 +143,34 @@ def _similar(left: str, right: str) -> bool:
         or normalize_text(left) in normalize_text(right)
         or normalize_text(right) in normalize_text(left)
     )
+
+
+def _official_topics(value: str) -> set[str]:
+    normalized = normalize_text(value)
+    return {
+        topic
+        for topic, aliases in OFFICIAL_TOPIC_ALIASES.items()
+        if any(normalize_text(alias) in normalized for alias in aliases)
+    }
+
+
+def _matches_official_topic(signal: TrendSignal, cluster: list[TrendSignal]) -> bool:
+    official_topics = _official_topics(signal.keyword)
+    editorial_topics = {
+        topic
+        for candidate in cluster
+        if candidate.source_kind == "morningnews"
+        for topic in _official_topics(candidate.keyword)
+    }
+    return bool(official_topics and official_topics & editorial_topics)
+
+
+def _same_official_topic(signal: TrendSignal, cluster: list[TrendSignal]) -> bool:
+    signal_topics = _official_topics(signal.keyword)
+    cluster_topics = {
+        topic for candidate in cluster for topic in _official_topics(candidate.keyword)
+    }
+    return bool(signal_topics and signal_topics & cluster_topics)
 
 
 def _domains(text: str) -> list[str]:
@@ -177,8 +218,22 @@ def _source_links(article_ids: set[str], articles: dict[str, Article]) -> list[S
         if not article or not article.url or article.url in seen_urls:
             continue
         seen_urls.add(article.url)
-        links.append(SourceLink(title=article.title, source=article.source, url=article.url))
-    return links[:4]
+        links.append(
+            SourceLink(
+                title=article.title,
+                source=article.source,
+                url=article.url,
+                source_kind=article.source_kind,
+            )
+        )
+    if len(links) <= 4:
+        return links
+    selected: list[SourceLink] = []
+    for source_kind in sorted({link.source_kind for link in links}):
+        selected.append(next(link for link in links if link.source_kind == source_kind))
+    selected_urls = {str(link.url) for link in selected}
+    selected.extend(link for link in links if str(link.url) not in selected_urls)
+    return selected[:4]
 
 
 def _display_title(signal: TrendSignal, sources: list[SourceLink]) -> str:
@@ -197,20 +252,25 @@ def _make_issue(
     signals: list[TrendSignal], articles: dict[str, Article], people: set[str]
 ) -> Issue:
     signals = sorted(signals, key=lambda item: (item.report_date, -item.score, item.keyword))
+    editorial_signals = [signal for signal in signals if signal.source_kind == "morningnews"]
+    ranking_signals = editorial_signals or signals
     representative = max(
-        signals,
+        ranking_signals,
         key=lambda item: (len(item.article_ids), item.score, item.report_date, item.keyword),
     )
-    days = sorted({signal.report_date for signal in signals})
+    days = sorted({signal.report_date for signal in ranking_signals})
     article_ids = {article_id for signal in signals for article_id in signal.article_ids}
     sources = _source_links(article_ids, articles)
+    ranking_article_ids = {
+        article_id for signal in ranking_signals for article_id in signal.article_ids
+    }
     combined = " ".join(
         [representative.keyword, representative.reason]
-        + [articles[item].title for item in sorted(article_ids) if item in articles]
+        + [articles[item].title for item in sorted(ranking_article_ids) if item in articles]
     )
     entities = _entities(combined, people)
     category_counts: dict[str, int] = defaultdict(int)
-    for signal in signals:
+    for signal in ranking_signals:
         for category in signal.categories:
             category_counts[category] += 1
     category = (
@@ -218,19 +278,50 @@ def _make_issue(
         if category_counts
         else "기타"
     )
-    source_count = len({source.source for source in sources})
+    ranking_source_count = len(
+        {
+            (articles[article_id].source_kind, articles[article_id].source)
+            for article_id in ranking_article_ids
+            if article_id in articles
+        }
+    )
     base_score = min(
-        100.0, 32 + len(days) * 11 + source_count * 4 + min(representative.score, 30) * 0.4
+        100.0,
+        32 + len(days) * 11 + ranking_source_count * 4 + min(representative.score, 30) * 0.4,
     )
-    fact_text = (
-        f"Morning News에서 '{representative.keyword}' 이슈가 {len(days)}일 동안 포착됐습니다."
-        f" 최근 신호는 “{representative.reason or representative.keyword}”입니다."
-    )
+    signal_kinds = sorted({signal.source_kind for signal in ranking_signals})
+    source_labels = [SOURCE_KIND_LABELS.get(kind, kind) for kind in signal_kinds]
+    if not editorial_signals and signal_kinds == ["bank_of_korea"]:
+        default_announcement = f"한국은행이 「{representative.keyword}」 자료를 발표했습니다."
+        detail = "" if representative.reason == default_announcement else representative.reason
+        fact_text = (
+            f"한국은행은 {representative.report_date.isoformat()}에 "
+            f"「{representative.keyword}」 자료를 발표했습니다. "
+            f"{detail}"
+        ).strip()
+    else:
+        fact_text = (
+            f"{'·'.join(source_labels)}에서 '{representative.keyword}' 이슈가 "
+            f"{len(days)}일 동안 포착됐습니다. 최근 신호는 "
+            f"“{representative.reason or representative.keyword}”입니다."
+        )
     blocks = [
         EvidenceBlock(
             kind=EvidenceType.FACT, label="확인된 흐름", text=fact_text, certainty=Certainty.HIGH
         )
     ]
+    official_signal = next(
+        (signal for signal in reversed(signals) if signal.source_kind == "bank_of_korea"), None
+    )
+    if official_signal is not None:
+        blocks.append(
+            EvidenceBlock(
+                kind=EvidenceType.OFFICIAL_CLAIM,
+                label="공식 자료",
+                text=official_signal.reason or official_signal.keyword,
+                certainty=Certainty.HIGH,
+            )
+        )
     watches: list[str] = []
     for domain in entities.market_domains[:3]:
         explanation, watch = IMPACT_COPY[domain]
@@ -308,10 +399,9 @@ def _select_primary(issues: list[Issue]) -> list[Issue]:
     return selected
 
 
-def build_brief(days: list[DailyInput], as_of: date) -> WeeklyBrief:
+def build_brief(days: list[SourceDay], as_of: date) -> WeeklyBrief:
     article_map = {article.stable_id: article for day in days for article in day.articles}
     people = {name for day in days for name in day.people}
-    clusters: list[list[TrendSignal]] = []
     all_signals = sorted(
         (
             trend
@@ -319,9 +409,22 @@ def build_brief(days: list[DailyInput], as_of: date) -> WeeklyBrief:
             for trend in day.trends
             if normalize_text(trend.keyword) not in REJECTED_KEYWORDS
         ),
-        key=lambda item: (normalize_text(item.keyword), item.report_date, item.keyword),
+        key=lambda item: (
+            item.source_kind,
+            normalize_text(item.keyword),
+            item.report_date,
+            item.keyword,
+        ),
     )
-    for signal in all_signals:
+    editorial_signals = [signal for signal in all_signals if signal.source_kind == "morningnews"]
+    official_signals = [signal for signal in all_signals if signal.source_kind == "bank_of_korea"]
+    other_signals = [
+        signal
+        for signal in all_signals
+        if signal.source_kind not in {"morningnews", "bank_of_korea"}
+    ]
+    clusters: list[list[TrendSignal]] = []
+    for signal in editorial_signals + other_signals:
         target = next(
             (cluster for cluster in clusters if _similar(cluster[0].keyword, signal.keyword)), None
         )
@@ -329,33 +432,71 @@ def build_brief(days: list[DailyInput], as_of: date) -> WeeklyBrief:
             clusters.append([signal])
         else:
             target.append(signal)
-    issues = sorted(
-        (_make_issue(cluster, article_map, people) for cluster in clusters),
-        key=lambda item: (-item.score, -item.active_days, item.title),
+    for signal in official_signals:
+        matching_editorial = [
+            cluster for cluster in clusters if _matches_official_topic(signal, cluster)
+        ]
+        if len(matching_editorial) == 1:
+            matching_editorial[0].append(signal)
+            continue
+        matching_official = next(
+            (
+                cluster
+                for cluster in clusters
+                if all(candidate.source_kind == "bank_of_korea" for candidate in cluster)
+                and _same_official_topic(signal, cluster)
+            ),
+            None,
+        )
+        if matching_official is None:
+            clusters.append([signal])
+        else:
+            matching_official.append(signal)
+    issue_records = sorted(
+        (
+            (_make_issue(cluster, article_map, people), {signal.source_kind for signal in cluster})
+            for cluster in clusters
+        ),
+        key=lambda item: (-item[0].score, -item[0].active_days, item[0].title),
     )
-    primary = _select_primary(issues)
+    issues = [issue for issue, _source_kinds in issue_records]
+    editorial_issues = [
+        issue for issue, source_kinds in issue_records if "morningnews" in source_kinds
+    ]
+    primary = _select_primary(editorial_issues)
     if len(primary) < 3:
         primary_ids = {issue.issue_id for issue in primary}
         primary.extend(
             issue
-            for issue in issues
+            for issue in editorial_issues
             if issue.sources
             and issue.category in {"정치", "국제", "경제/거시"}
             and issue.issue_id not in primary_ids
         )
         primary = primary[:3]
     primary_ids = {issue.issue_id for issue in primary}
+    official_updates = [
+        issue
+        for issue, source_kinds in issue_records
+        if issue.issue_id not in primary_ids
+        and "morningnews" not in source_kinds
+        and "bank_of_korea" in source_kinds
+    ][:3]
+    official_ids = {issue.issue_id for issue in official_updates}
     currents = [
         issue
         for issue in issues
         if issue.issue_id not in primary_ids
+        and issue.issue_id not in official_ids
         and issue.category in {"부동산", "기업/산업", "생활/문화"}
     ][:5]
-    available = sorted(day.report_date for day in days)
+    available = sorted({day.report_date for day in days if day.source_kind == "morningnews"})
     expected = [as_of - timedelta(days=offset) for offset in range(6, -1, -1)]
     missing = [day for day in expected if day not in available]
     reading_minutes = max(3, min(5, round((len(primary) * 180 + len(currents) * 90 + 300) / 500)))
     primary_domains = {domain for issue in primary for domain in issue.entities.market_domains}
+    source_kinds = sorted({day.source_kind for day in days})
+    source_labels = ", ".join(SOURCE_KIND_LABELS.get(kind, kind) for kind in source_kinds)
     lead_domain = next(
         (domain for domain in NARRATIVE_DOMAIN_PRIORITY if domain in primary_domains), "daily_life"
     )
@@ -381,13 +522,17 @@ def build_brief(days: list[DailyInput], as_of: date) -> WeeklyBrief:
         generated_at=datetime.combine(as_of, datetime.min.time()),
         input_days=available,
         missing_days=missing,
+        source_kinds=source_kinds,
         headline=headline,
         overview=overview,
         issues=primary,
+        official_updates=official_updates,
         currents=currents,
         reading_minutes=reading_minutes,
         methodology_note=(
-            "Morning News의 기사 메타데이터와 일별 키워드를 규칙 기반으로 "
-            "재구성했습니다. 기사 원문을 독립적으로 검증한 결과나 투자 조언이 아닙니다."
+            f"{source_labels}를 규칙 기반으로 재구성했습니다. 공식 자료는 좁게 정의한 동일 "
+            "주제가 하나의 뉴스 흐름과 명확히 일치할 때만 근거로 연결하고, 나머지는 별도 "
+            "구역에 표시합니다. 원문 전체를 "
+            "독립적으로 사실 검증한 결과나 투자 조언이 아닙니다."
         ),
     )
