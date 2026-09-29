@@ -19,8 +19,36 @@ def test_load_day_normalizes_and_deduplicates_articles() -> None:
         "https://example.com/home",
     }
     assert day.people == {"홍길동": "정부 관계자"}
+    assert day.person_article_ids == {}
     assert day.source_kind == "morningnews"
     assert {article.source_kind for article in day.articles} == {"morningnews"}
+
+
+def test_load_day_preserves_key_person_articles_as_evidence(tmp_path: Path) -> None:
+    cache_dir = tmp_path / "data_cache"
+    cache_dir.mkdir()
+    (cache_dir / "key_persons_20260929.json").write_text(
+        """{
+  "data": {
+    "김가람": {
+      "role": "아르카디아 대통령",
+      "articles": [{
+        "title": "김가람 대통령, 핵심 연료 수출금지 명령",
+        "link": "https://example.com/power-move",
+        "source": "테스트통신",
+        "description": "김가람 대통령이 수출금지 행정명령에 서명했다."
+      }]
+    }
+  }
+} """,
+        encoding="utf-8",
+    )
+
+    day = load_day(tmp_path, date(2026, 9, 29))
+
+    assert day.people == {"김가람": "아르카디아 대통령"}
+    assert len(day.articles) == 1
+    assert day.person_article_ids == {"김가람": [day.articles[0].stable_id]}
 
 
 BOK_RSS = """<?xml version="1.0" encoding="UTF-8"?>

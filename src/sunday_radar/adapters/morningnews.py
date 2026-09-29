@@ -81,6 +81,7 @@ def load_day(root: Path, report_date: date) -> SourceDay:
     articles: dict[str, Article] = {}
     trends: list[TrendSignal] = []
     people: dict[str, str] = {}
+    person_article_ids: dict[str, list[str]] = {}
     summaries: dict[str, str] = {}
 
     ai_path = cache_dir / f"ai_analysis_{stamp}.json"
@@ -138,7 +139,19 @@ def load_day(root: Path, report_date: date) -> SourceDay:
         if isinstance(raw_people, dict):
             for name, value in raw_people.items():
                 if isinstance(value, dict):
-                    people[str(name)] = str(value.get("role", ""))
+                    person_name = str(name)
+                    people[person_name] = str(value.get("role", ""))
+                    related_ids: list[str] = []
+                    raw_articles = value.get("articles", [])
+                    if isinstance(raw_articles, list):
+                        for raw_article in raw_articles:
+                            parsed = RawArticle.model_validate(raw_article)
+                            item = _article(parsed, report_date, "주요 인물")
+                            if item.title:
+                                articles[item.stable_id] = item
+                                related_ids.append(item.stable_id)
+                    if related_ids:
+                        person_article_ids[person_name] = sorted(set(related_ids))
 
     sentiment_path = sentiment_dir / f"sentiment_{stamp}.json"
     if sentiment_path.exists():
@@ -154,6 +167,7 @@ def load_day(root: Path, report_date: date) -> SourceDay:
         articles=sorted(articles.values(), key=lambda item: item.stable_id),
         trends=sorted(trends, key=lambda item: (normalize_text(item.keyword), item.keyword)),
         people=people,
+        person_article_ids=person_article_ids,
         section_summaries=summaries,
     )
 

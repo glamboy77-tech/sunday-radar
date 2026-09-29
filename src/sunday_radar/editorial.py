@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from sunday_radar.domain import EditorialDraft, EvidenceType, WeeklyBrief
 from sunday_radar.settings import Settings
 
-PROMPT_VERSION = "2026-09-29.3"
+PROMPT_VERSION = "2026-09-29.4"
 EDITORIAL_SCHEMA_VERSION = 1
 ALLOWED_MODES = {"rules", "llm-with-fallback", "llm-required"}
 
@@ -31,6 +31,9 @@ interpretation은 grounded_notes를 바탕으로 독자의 생활·자산·경�
 짚으세요. 가능성을 사실처럼 쓰지 마세요.
 
 각 이슈의 editorial_lens에 따른 임무:
+- power_move: 인물의 유명세나 말투가 아니라 실제로 바뀐 국가·시장·현장 조건을 쓰세요.
+  decision_makers, consequential_actions, power_impact_chain을 사용해 행동 → 제도·안보·교역 변화
+  → 생활비·사업·자산으로 번지는 경로를 설명하세요. 단순 정치 공방은 확대하지 마세요.
 - real_world_chain: 거대 이슈를 사건 → 비용 전달 경로 → 독자의 지갑·물가·생활비 순서로
   연결하세요. impact_chain은 인과 구조를 잡는 편집 가이드이며, 출처에 없는 수치나 확정적
   결과를 덧붙이지 마세요.
@@ -107,6 +110,9 @@ def evidence_packet(brief: WeeklyBrief) -> dict[str, Any]:
                 "operational_risks": issue.operational_risks,
                 "timeline": issue.timeline,
                 "game_changer_signals": issue.game_changer_signals,
+                "decision_makers": issue.decision_makers,
+                "consequential_actions": issue.consequential_actions,
+                "power_impact_chain": issue.power_impact_chain,
                 "selection_context": {
                     "first_seen": issue.first_seen.isoformat(),
                     "last_seen": issue.last_seen.isoformat(),

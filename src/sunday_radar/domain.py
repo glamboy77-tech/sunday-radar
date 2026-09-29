@@ -21,6 +21,7 @@ class Certainty(StrEnum):
 
 
 class EditorialLens(StrEnum):
+    POWER_MOVE = "power_move"
     REAL_WORLD_CHAIN = "real_world_chain"
     OPERATIONAL_RISK = "operational_risk"
     GAME_CHANGER = "game_changer"
@@ -60,6 +61,7 @@ class SourceDay(BaseModel):
     articles: list[Article]
     trends: list[TrendSignal]
     people: dict[str, str] = Field(default_factory=dict)
+    person_article_ids: dict[str, list[str]] = Field(default_factory=dict)
     section_summaries: dict[str, str] = Field(default_factory=dict)
 
 
@@ -107,6 +109,9 @@ class Issue(BaseModel):
     priority_score: float = 0.0
     reader_heading: str = ""
     reader_summary: str = ""
+    decision_makers: list[str] = Field(default_factory=list)
+    consequential_actions: list[str] = Field(default_factory=list)
+    power_impact_chain: list[str] = Field(default_factory=list)
 
 
 class WeeklyBrief(BaseModel):

@@ -19,6 +19,7 @@ def _source_day(
     description: str = "",
     categories: list[str] | None = None,
     score: float | None = None,
+    people: dict[str, str] | None = None,
 ) -> SourceDay:
     source_name = "한국은행" if source_kind == "bank_of_korea" else "테스트경제"
     article = Article(
@@ -46,6 +47,7 @@ def _source_day(
                 source_kind=source_kind,
             )
         ],
+        people=people or {},
     )
 
 
@@ -92,16 +94,201 @@ def test_editorial_lenses_prioritize_real_world_risk_and_game_changer() -> None:
 
     brief = build_brief([promotion, oil, permit, treatment], report_date)
 
-    assert [issue.editorial_lens for issue in brief.issues] == [
+    issues_by_lens = {issue.editorial_lens: issue for issue in brief.issues}
+    assert set(issues_by_lens) == {
         EditorialLens.GAME_CHANGER,
         EditorialLens.REAL_WORLD_CHAIN,
         EditorialLens.OPERATIONAL_RISK,
-    ]
-    assert "주유비·공공요금·장바구니 물가" in brief.issues[1].impact_chain
-    assert brief.issues[2].operational_risks
-    assert "내년" in brief.issues[2].timeline
-    assert treatment.trends[0].keyword == brief.issues[0].title
+    }
+    assert (
+        "주유비·공공요금·장바구니 물가"
+        in issues_by_lens[EditorialLens.REAL_WORLD_CHAIN].impact_chain
+    )
+    assert issues_by_lens[EditorialLens.OPERATIONAL_RISK].operational_risks
+    assert "내년" in issues_by_lens[EditorialLens.OPERATIONAL_RISK].timeline
+    assert treatment.trends[0].keyword == issues_by_lens[EditorialLens.GAME_CHANGER].title
     assert all(issue.title != "AI 업무협약" for issue in brief.issues)
+
+
+def test_decision_maker_action_becomes_power_move_without_name_hardcoding() -> None:
+    report_date = date(2026, 9, 29)
+    power_move = _source_day(
+        "morningnews",
+        report_date,
+        "수출 통제 전면 전환",
+        "leader-export-ban",
+        reason="아르카디아 대통령 김가람이 핵심 연료 수출금지 행정명령에 서명했습니다.",
+        title="김가람 대통령, 핵심 연료 수출금지 행정명령",
+        categories=["국제", "경제/거시"],
+        people={"김가람": "아르카디아 대통령"},
+    )
+
+    issue = build_brief([power_move], report_date).issues[0]
+
+    assert issue.editorial_lens == EditorialLens.POWER_MOVE
+    assert issue.decision_makers == ["김가람 (아르카디아 대통령)"]
+    assert {"수출금지", "행정명령"}.issubset(issue.consequential_actions)
+    assert issue.power_impact_chain == [
+        "시장 접근과 교역 조건 변화",
+        "수입 원가·수출 물량·공급망",
+        "제품 가격·고용·기업 투자",
+    ]
+
+
+def test_famous_person_name_without_consequential_action_is_not_power_move() -> None:
+    report_date = date(2026, 9, 29)
+    ceremony = _source_day(
+        "morningnews",
+        report_date,
+        "정상 기념행사",
+        "leader-ceremony",
+        reason="아르카디아 대통령 김가람이 기념행사에서 축사를 했습니다.",
+        title="김가람 대통령 기념행사 참석",
+        categories=["정치"],
+        people={"김가람": "아르카디아 대통령"},
+    )
+
+    brief = build_brief([ceremony], report_date)
+
+    issue = next(issue for issue in brief.issues + brief.currents if issue.title == "정상 기념행사")
+    assert issue.editorial_lens != EditorialLens.POWER_MOVE
+    assert issue.decision_makers == ["김가람 (아르카디아 대통령)"]
+    assert issue.consequential_actions == []
+    assert issue.power_impact_chain == []
+
+
+def test_key_person_article_can_enter_candidates_when_action_changes_conditions() -> None:
+    report_date = date(2026, 9, 29)
+    article = Article(
+        stable_id="person-action",
+        title="김가람 대통령, 핵심 연료 수출금지 명령",
+        url="https://example.com/person-action",
+        source="테스트통신",
+        description="아르카디아가 핵심 연료 수출금지 행정명령을 발효했습니다.",
+        section="국제",
+        report_date=report_date,
+        source_kind="morningnews",
+    )
+    day = SourceDay(
+        source_kind="morningnews",
+        report_date=report_date,
+        files=[Path("people.json")],
+        articles=[article],
+        trends=[],
+        people={"김가람": "아르카디아 대통령"},
+        person_article_ids={"김가람": [article.stable_id]},
+    )
+
+    issue = build_brief([day], report_date).issues[0]
+
+    assert issue.editorial_lens == EditorialLens.POWER_MOVE
+    assert issue.sources[0].title == article.title
+    assert issue.decision_makers == ["김가람 (아르카디아 대통령)"]
+
+
+def test_action_is_not_attributed_to_person_from_a_different_sentence() -> None:
+    report_date = date(2026, 9, 29)
+    article = Article(
+        stable_id="separate-action",
+        title="김가람 대통령, 포로 송환 경과 설명",
+        url="https://example.com/separate-action",
+        source="테스트통신",
+        description=(
+            "김가람 대통령은 포로 송환 과정을 설명했습니다. "
+            "앞서 동맹국 군 지휘부는 별도 지역에 파병을 결정했습니다."
+        ),
+        section="국제",
+        report_date=report_date,
+        source_kind="morningnews",
+    )
+    day = SourceDay(
+        source_kind="morningnews",
+        report_date=report_date,
+        files=[Path("people.json")],
+        articles=[article],
+        trends=[],
+        people={"김가람": "아르카디아 대통령"},
+        person_article_ids={"김가람": [article.stable_id]},
+    )
+
+    brief = build_brief([day], report_date)
+
+    assert brief.issues == []
+    assert brief.currents == []
+
+
+def test_trade_truce_uses_trade_impact_chain_not_military_chain() -> None:
+    report_date = date(2026, 9, 29)
+    day = _source_day(
+        "morningnews",
+        report_date,
+        "양국 무역 휴전 연장",
+        "trade-truce",
+        reason="아르카디아 대통령 김가람이 무역 휴전 연장에 합의했습니다.",
+        categories=["국제", "경제/거시"],
+        people={"김가람": "아르카디아 대통령"},
+    )
+
+    issue = build_brief([day], report_date).issues[0]
+
+    assert issue.editorial_lens == EditorialLens.POWER_MOVE
+    assert issue.consequential_actions == ["무역 휴전"]
+    assert issue.power_impact_chain[0] == "시장 접근과 교역 조건 변화"
+
+
+def test_proposed_or_rejected_action_does_not_create_power_move_candidate() -> None:
+    report_date = date(2026, 9, 29)
+    for title in (
+        "김가람 대통령, 연료 수출금지 입장…실현가능성 검토",
+        "김가람 대통령, 공격 계획 보류",
+        "김가람 대통령, 휴전 제안 거부",
+        "김가람 대통령, 관세 부과 압박할 듯",
+    ):
+        article = Article(
+            stable_id=title,
+            title=title,
+            url="https://example.com/unrealized",
+            source="테스트통신",
+            section="국제",
+            report_date=report_date,
+            source_kind="morningnews",
+        )
+        day = SourceDay(
+            source_kind="morningnews",
+            report_date=report_date,
+            files=[Path("people.json")],
+            articles=[article],
+            trends=[],
+            people={"김가람": "아르카디아 대통령"},
+            person_article_ids={"김가람": [article.stable_id]},
+        )
+
+        brief = build_brief([day], report_date)
+
+        assert brief.issues == [], title
+        assert brief.currents == [], title
+
+
+def test_action_in_another_article_is_not_attributed_to_leader() -> None:
+    report_date = date(2026, 9, 29)
+    day = _source_day(
+        "morningnews",
+        report_date,
+        "지역 안보 현안",
+        "unrelated-action",
+        reason="김가람 대통령이 회담에 참석했습니다.",
+        title="동맹국 지휘부, 별도 지역 파병 결정",
+        categories=["국제"],
+        people={"김가람": "아르카디아 대통령"},
+    )
+
+    brief = build_brief([day], report_date)
+    issue = next(
+        issue for issue in brief.issues + brief.currents if issue.title == "지역 안보 현안"
+    )
+
+    assert issue.editorial_lens != EditorialLens.POWER_MOVE
+    assert issue.consequential_actions == []
 
 
 def test_build_brief_separates_evidence_and_extracts_domains() -> None:

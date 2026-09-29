@@ -183,6 +183,122 @@ LOW_SIGNAL_TERMS = (
     "가격 전망",
 )
 
+DECISION_MAKER_ROLE_TERMS = (
+    "대통령",
+    "국가주석",
+    "총리",
+    "국왕",
+    "장관",
+    "부총리",
+    "중앙은행 총재",
+    "연준 의장",
+    "당대표",
+    "대표",
+    "위원장",
+    "법원장",
+    "검찰총장",
+    "참모총장",
+    "군사령관",
+    "최고경영자",
+    "ceo",
+)
+POWER_ACTIONS = {
+    "military": (
+        "공격",
+        "폭격",
+        "침공",
+        "파병",
+        "철군",
+        "철수",
+        "휴전",
+        "동원령",
+        "미사일 발사",
+        "핵실험",
+    ),
+    "trade": (
+        "무역 휴전",
+        "관세 부과",
+        "관세 인상",
+        "수출금지",
+        "수입금지",
+        "금수조치",
+        "경제제재",
+        "제재 해제",
+        "무역협정 체결",
+        "협정 탈퇴",
+    ),
+    "policy": (
+        "행정명령",
+        "거부권",
+        "법안 서명",
+        "정책 철회",
+        "규제 철회",
+        "해임",
+        "사면",
+        "국유화",
+        "민영화",
+    ),
+    "diplomacy": (
+        "합의 타결",
+        "협상 결렬",
+        "국교 단절",
+        "승인 철회",
+        "독립 승인",
+        "영토 인정",
+        "동맹 탈퇴",
+    ),
+    "fiscal": (
+        "증세",
+        "감세",
+        "예산 삭감",
+        "보조금 중단",
+        "재정지원 중단",
+        "채무불이행",
+    ),
+}
+POWER_MODERATE_ACTIONS = {
+    "policy": ("사임", "임명", "재가"),
+    "diplomacy": (
+        "돌발 발표",
+        "돌발발표",
+        "전격 공개",
+        "비공개 합의를 어기고 공개",
+        "회담 취소",
+        "방문 취소",
+    ),
+}
+POWER_UNREALIZED_TERMS = (
+    "검토",
+    "예상",
+    "전망",
+    "가능성",
+    "압박",
+    "제안",
+    "보류",
+    "거부",
+    "경고",
+    "입장",
+    "할 듯",
+    "할 수도",
+    "계획",
+    "요구",
+)
+POWER_IMPACT_CHAINS = {
+    "military": ["군사·안보 조건 변화", "에너지·물류·위험 회피", "유가·환율·공급망·생활비"],
+    "trade": [
+        "시장 접근과 교역 조건 변화",
+        "수입 원가·수출 물량·공급망",
+        "제품 가격·고용·기업 투자",
+    ],
+    "policy": ["법과 행정의 전제 변화", "허가·세금·사업 계획 재조정", "현장 일정·비용·이용자 권리"],
+    "diplomacy": [
+        "국가 간 약속과 신뢰 변화",
+        "동맹·투자·교역 판단 변화",
+        "안보 비용·환율·기업 전략",
+    ],
+    "fiscal": ["정부의 세입·지출 방향 변화", "가계·기업 지원과 부담 변화", "소득·고용·소비 여력"],
+}
+
 CHAIN_DOMAINS = {"prices", "rates", "fx", "real_estate", "jobs", "daily_life"}
 CHAIN_STEPS = {
     "prices": ["원유·원자재·운송비 압력", "기업의 원가와 배송비", "주유비·공공요금·장바구니 물가"],
@@ -345,6 +461,69 @@ def _entities(text: str, people: set[str]) -> EntitySet:
     )
 
 
+def _power_profile(
+    text: str, people: dict[str, str]
+) -> tuple[list[str], list[str], list[str], float]:
+    normalized = normalize_text(text)
+    eligible_people = {
+        name: role
+        for name, role in people.items()
+        if normalize_text(name) in normalized
+        and any(normalize_text(term) in normalize_text(role) for term in DECISION_MAKER_ROLE_TERMS)
+    }
+    decision_makers = sorted(f"{name} ({role})" for name, role in eligible_people.items())
+    if not decision_makers:
+        return [], [], [], 0.0
+
+    segments = [
+        normalize_text(segment)
+        for segment in re.split(r"(?<=[.!?。])\s+|[\n\r]+", text)
+        if segment.strip()
+    ]
+    actor_segments = [
+        segment
+        for segment in segments
+        if any(normalize_text(name) in segment for name in eligible_people)
+    ]
+    if not actor_segments:
+        return decision_makers, [], [], 0.0
+
+    matched: list[tuple[str, str]] = []
+    moderate: list[tuple[str, str]] = []
+    for segment in actor_segments:
+        if any(normalize_text(term) in segment for term in POWER_UNREALIZED_TERMS):
+            continue
+        for action_type, terms in POWER_ACTIONS.items():
+            matched.extend(
+                (action_type, term)
+                for term in terms
+                if normalize_text(term) in segment
+                and not (
+                    action_type == "military"
+                    and term == "휴전"
+                    and normalize_text("무역 휴전") in segment
+                )
+                and not (
+                    action_type == "military"
+                    and term == "폭격"
+                    and normalize_text("폭격기") in segment
+                )
+            )
+        for action_type, terms in POWER_MODERATE_ACTIONS.items():
+            moderate.extend(
+                (action_type, term) for term in terms if normalize_text(term) in segment
+            )
+    if not matched and not moderate:
+        return decision_makers, [], [], 0.0
+
+    actions = [term for _action_type, term in matched[:3]]
+    actions.extend(term for _action_type, term in moderate[:2])
+    action_types = [action_type for action_type, _term in matched + moderate]
+    impact_chain = POWER_IMPACT_CHAINS[action_types[0]]
+    bonus = 32.0 if matched else 18.0
+    return decision_makers, actions, impact_chain, bonus
+
+
 def _source_links(article_ids: set[str], articles: dict[str, Article]) -> list[SourceLink]:
     links: list[SourceLink] = []
     seen_urls: set[str] = set()
@@ -371,6 +550,43 @@ def _source_links(article_ids: set[str], articles: dict[str, Article]) -> list[S
     selected_urls = {str(link.url) for link in selected}
     selected.extend(link for link in links if str(link.url) not in selected_urls)
     return selected[:4]
+
+
+def _person_action_signals(
+    days: list[SourceDay], articles: dict[str, Article]
+) -> list[TrendSignal]:
+    signals: list[TrendSignal] = []
+    seen: set[tuple[date, str, str]] = set()
+    for day in days:
+        for name, article_ids in sorted(day.person_article_ids.items()):
+            role = day.people.get(name, "")
+            for article_id in article_ids:
+                article = articles.get(article_id)
+                if article is None:
+                    continue
+                _makers, actions, _chain, bonus = _power_profile(article.title, {name: role})
+                if not bonus:
+                    _makers, actions, _chain, bonus = _power_profile(
+                        clean_summary_text(article.description)[:320], {name: role}
+                    )
+                if not bonus or not actions:
+                    continue
+                key = (day.report_date, name, article_id)
+                if key in seen:
+                    continue
+                seen.add(key)
+                signals.append(
+                    TrendSignal(
+                        keyword=f"{name}: {article.title}",
+                        reason=clean_summary_text(article.description) or article.title,
+                        score=12.0,
+                        categories=[article.section] if article.section else ["기타"],
+                        report_date=day.report_date,
+                        article_ids=[article_id],
+                        source_kind="morningnews",
+                    )
+                )
+    return signals
 
 
 def _display_title(signal: TrendSignal, sources: list[SourceLink]) -> str:
@@ -441,6 +657,7 @@ def _editorial_profile(
     category: str,
     domains: list[str],
     base_score: float,
+    power_bonus: float,
 ) -> tuple[EditorialLens, list[str], list[str], list[str], list[str], float]:
     normalized = normalize_text(text)
     technology_terms = [term for term in GAME_CHANGER_DOMAIN_TERMS if term in normalized]
@@ -476,7 +693,9 @@ def _editorial_profile(
     impact_chain = CHAIN_STEPS[chain_domain] if chain_domain else []
     chain_candidate = bool(chain_domain and category in {"국제", "경제/거시", "정치", "부동산"})
 
-    if game_changer_signals:
+    if power_bonus:
+        lens = EditorialLens.POWER_MOVE
+    elif game_changer_signals:
         lens = EditorialLens.GAME_CHANGER
     elif operational_risks:
         lens = EditorialLens.OPERATIONAL_RISK
@@ -486,6 +705,7 @@ def _editorial_profile(
         lens = EditorialLens.STANDARD
 
     lens_bonus = {
+        EditorialLens.POWER_MOVE: power_bonus,
         EditorialLens.GAME_CHANGER: 38,
         EditorialLens.OPERATIONAL_RISK: 28,
         EditorialLens.REAL_WORLD_CHAIN: 24,
@@ -503,7 +723,7 @@ def _editorial_profile(
 
 
 def _make_issue(
-    signals: list[TrendSignal], articles: dict[str, Article], people: set[str]
+    signals: list[TrendSignal], articles: dict[str, Article], people: dict[str, str]
 ) -> Issue:
     signals = sorted(signals, key=lambda item: (item.report_date, -item.score, item.keyword))
     editorial_signals = [signal for signal in signals if signal.source_kind == "morningnews"]
@@ -518,15 +738,18 @@ def _make_issue(
     ranking_article_ids = {
         article_id for signal in ranking_signals for article_id in signal.article_ids
     }
-    combined = " ".join(
+    combined = ". ".join(
         [representative.keyword, representative.reason]
         + [
-            f"{articles[item].title} {clean_summary_text(articles[item].description)}"
+            f"{articles[item].title}. {clean_summary_text(articles[item].description)}"
             for item in sorted(ranking_article_ids)
             if item in articles
         ]
     )
-    entities = _entities(combined, people)
+    entities = _entities(combined, set(people))
+    decision_makers, consequential_actions, power_impact_chain, power_bonus = _power_profile(
+        combined, people
+    )
     category_counts: dict[str, int] = defaultdict(int)
     for signal in ranking_signals:
         for category in signal.categories:
@@ -554,7 +777,7 @@ def _make_issue(
         timeline,
         game_changer_signals,
         priority_score,
-    ) = _editorial_profile(combined, category, entities.market_domains, base_score)
+    ) = _editorial_profile(combined, category, entities.market_domains, base_score, power_bonus)
     signal_kinds = sorted({signal.source_kind for signal in ranking_signals})
     reader_heading = ""
     reader_summary = ""
@@ -631,6 +854,9 @@ def _make_issue(
         priority_score=priority_score,
         reader_heading=reader_heading,
         reader_summary=reader_summary,
+        decision_makers=decision_makers,
+        consequential_actions=consequential_actions,
+        power_impact_chain=power_impact_chain,
     )
 
 
@@ -651,26 +877,36 @@ def _select_primary(issues: list[Issue]) -> list[Issue]:
         key=lambda issue: (-issue.priority_score, -issue.score, -issue.active_days, issue.title),
     )
     selected: list[Issue] = []
-    for lens in (
-        EditorialLens.GAME_CHANGER,
-        EditorialLens.REAL_WORLD_CHAIN,
-        EditorialLens.OPERATIONAL_RISK,
-    ):
-        match = next((issue for issue in ordered if issue.editorial_lens == lens), None)
-        if match is not None and match not in selected:
-            selected.append(match)
-    selected.extend(issue for issue in ordered if issue not in selected)
+    while ordered and len(selected) < 3:
+        selected_people = {person for issue in selected for person in issue.entities.people}
+        next_issue = max(
+            ordered,
+            key=lambda issue: (
+                issue.priority_score - (18 if selected_people & set(issue.entities.people) else 0),
+                issue.score,
+                issue.active_days,
+                issue.title,
+            ),
+        )
+        selected.append(next_issue)
+        ordered.remove(next_issue)
     return selected[:3]
 
 
 def build_brief(days: list[SourceDay], as_of: date) -> WeeklyBrief:
     article_map = {article.stable_id: article for day in days for article in day.articles}
-    people = {name for day in days for name in day.people}
+    people = {
+        name: role
+        for day in sorted(days, key=lambda item: item.report_date)
+        for name, role in sorted(day.people.items())
+    }
     all_signals = sorted(
         (
             trend
-            for day in days
-            for trend in day.trends
+            for trend in [
+                *(trend for day in days for trend in day.trends),
+                *_person_action_signals(days, article_map),
+            ]
             if normalize_text(trend.keyword) not in REJECTED_KEYWORDS
         ),
         key=lambda item: (

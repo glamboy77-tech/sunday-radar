@@ -26,12 +26,13 @@ DOMAIN_LABELS = {
 }
 
 LENS_LABELS = {
+    "power_move": "POWER MOVE",
     "real_world_chain": "REALITY CHAIN",
     "operational_risk": "FIELD RISK",
     "game_changer": "GAME-CHANGER",
     "standard": "WEEKLY SIGNAL",
 }
-RENDER_SCHEMA_VERSION = 6
+RENDER_SCHEMA_VERSION = 7
 
 
 class RenderValidationError(RuntimeError):
