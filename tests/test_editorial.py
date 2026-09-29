@@ -40,40 +40,39 @@ def _brief() -> WeeklyBrief:
 def _draft_payload(brief: WeeklyBrief) -> dict[str, Any]:
     packet = evidence_packet(brief)
     sections: list[dict[str, Any]] = []
-    for issue in packet["issues"]:
+    for index, issue in enumerate(packet["issues"]):
         source_id = issue["sources"][0]["source_id"]
+        fact = {
+            "kind": "fact",
+            "text": f"{issue['title']}의 변화가 시장의 가격표를 다시 쓰기 시작했습니다.",
+            "source_ids": [source_id],
+        }
+        interpretation = {
+            "kind": "interpretation",
+            "text": "가계의 지출과 자산 가격에 전달되는 속도가 핵심입니다.",
+            "source_ids": [],
+        }
         sections.append(
             {
                 "issue_id": issue["issue_id"],
-                "heading": f"{issue['title']}에서 시작된 이번 주의 질문",
-                "paragraphs": [
-                    {
-                        "kind": "fact",
-                        "text": "이번 주 보도에서 확인된 핵심 장면을 먼저 차분히 살펴봅니다.",
-                        "source_ids": [source_id],
-                    },
-                    {
-                        "kind": "interpretation",
-                        "text": (
-                            "이 변화가 시장과 생활에 닿는 경로를 구분해서 읽을 필요가 있습니다."
-                        ),
-                        "source_ids": [],
-                    },
-                ],
+                "heading": f"{issue['title']}이 바꾸는 비용의 방향",
+                "paragraphs": [fact, interpretation] if index % 2 == 0 else [interpretation, fact],
             }
         )
     return {
         "headline": "서로 다른 뉴스가 하나의 질문으로 모인 한 주",
         "overview": (
-            "이번 주의 여러 장면을 확인된 근거에서 출발해 하나의 흐름으로 천천히 읽어봅니다."
+            "금리와 주거 비용의 변화가 가계의 선택지를 좁히고 있습니다. "
+            "가격보다 비용을 볼 때입니다."
         ),
         "sections": sections,
         "transitions": [
-            "첫 장면에서 확인한 변화는 다음 이슈를 이해하는 배경이 됩니다."
+            "돈의 가격이 움직이면 다음 충격은 주거 비용에서 더 선명해집니다."
             for _ in range(max(0, len(sections) - 1))
         ],
         "conclusion": (
-            "다음 주에는 후속 발표와 실제 지표가 이 흐름을 이어가는지 확인할 필요가 있습니다."
+            "이번 주의 핵심은 자산 가격보다 그 자산을 버티는 비용입니다. "
+            "금리의 파장은 생활비에서 완성됩니다."
         ),
     }
 
@@ -99,6 +98,17 @@ def test_editorial_generation_uses_strict_schema_and_cache(tmp_path: Path) -> No
             packet["issues"][0]["sources"][0]["description"]
             == "기사 설명이 evidence packet에 전달됩니다."
         )
+        assert packet["issues"][0]["selection_context"]["instruction"]
+        assert "watch_points" in packet["issues"][0]
+        assert "watch_variables" not in packet["issues"][0]
+        assert packet["issues"][0]["editorial_lens"]
+        assert "impact_chain" in packet["issues"][0]
+        assert "operational_risks" in packet["issues"][0]
+        assert "timeline" in packet["issues"][0]
+        assert "game_changer_signals" in packet["issues"][0]
+        instructions = request_payload["instructions"]
+        assert "원고 전체에서 최대 한 번" in instructions
+        assert "N일에 걸쳐" in instructions
         return httpx.Response(
             200,
             request=request,
@@ -174,6 +184,23 @@ def test_editorial_validation_rejects_unknown_sources_and_invented_numbers() -> 
     payload = _draft_payload(brief)
     payload["conclusion"] = "근거에 없던 9999퍼센트 전망을 새로 추가한 잘못된 결론입니다."
     with pytest.raises(EditorialError, match="unsupported numbers"):
+        validate_draft(EditorialDraft.model_validate(payload), brief, packet)
+
+
+def test_editorial_validation_rejects_mechanical_copy_and_repeated_disclaimers() -> None:
+    brief = _brief()
+    packet = evidence_packet(brief)
+    payload = _draft_payload(brief)
+    payload["sections"][0]["paragraphs"][0]["text"] = (
+        "이번 주 Morning News에서 관련 보도가 이어졌다는 사실을 먼저 전합니다."
+    )
+    with pytest.raises(EditorialError, match="mechanical phrasing"):
+        validate_draft(EditorialDraft.model_validate(payload), brief, packet)
+
+    payload = _draft_payload(brief)
+    for section in payload["sections"][:2]:
+        section["paragraphs"][1]["kind"] = "scenario"
+    with pytest.raises(EditorialError, match="at most one scenario"):
         validate_draft(EditorialDraft.model_validate(payload), brief, packet)
 
 

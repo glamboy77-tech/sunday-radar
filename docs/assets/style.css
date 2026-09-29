@@ -47,10 +47,16 @@ h1 {
 .section-heading p { margin: 0 0 5px; color: var(--signal); font-size: .78rem; font-weight: 900; }
 h2 { margin: 0; font-family: Georgia, "Noto Serif KR", serif; font-size: 2rem; line-height: 1.18; letter-spacing: -.035em; }
 .section-heading.secondary { padding-top: 12px; border-top: 3px solid var(--ink); }
-.story-intro { max-width: 620px; margin: 20px 0 30px; color: var(--muted); font-family: Georgia, "Noto Serif KR", serif; line-height: 1.85; }
-
 .story { position: relative; }
 .issue-card { scroll-margin-top: 20px; padding: 50px 0 42px; border-bottom: 1px solid var(--line); }
+.issue-card-game_changer {
+  margin: 34px -28px 4px;
+  padding: 42px 28px;
+  border: 1px solid #e8a48f;
+  background: #fff2eb;
+}
+.issue-card-game_changer .chapter-kicker,
+.issue-card-game_changer .issue-number b { color: #c73513; }
 .chapter-kicker { margin-bottom: 18px; }
 .issue-number { display: flex; gap: 10px; align-items: center; margin-bottom: 13px; }
 .issue-number b { color: var(--signal); font-size: 1.2rem; }
@@ -59,9 +65,7 @@ h3 { margin: 0; font-family: Georgia, "Noto Serif KR", serif; font-size: 1.65rem
 .story-copy { max-width: 680px; margin-top: 24px; }
 .story-paragraph { margin: 0 0 18px; font-family: Georgia, "Noto Serif KR", serif; font-size: 1.04rem; line-height: 1.9; }
 .story-paragraph-official_claim { padding-left: 17px; border-left: 3px solid var(--green); }
-.story-paragraph-scenario { color: var(--muted); }
-.watch { margin: 26px 0 0; color: #4d554f; font-size: .88rem; }
-.watch strong { color: var(--ink); }
+.story-paragraph-scenario { color: #4d554f; font-size: .98rem; }
 .sources { margin-top: 27px; padding-top: 18px; border-top: 1px solid var(--line); }
 .sources h4 { margin: 0 0 10px; font-size: .78rem; letter-spacing: .04em; }
 .sources ul { margin: 0; padding: 0; list-style: none; }
@@ -94,6 +98,7 @@ footer span { color: #abb3ad; }
   .section-heading { margin-top: 46px; }
   h2 { font-size: 1.7rem; }
   .issue-card { padding: 42px 0 39px; }
+  .issue-card-game_changer { margin: 28px -16px 4px; padding: 34px 16px; }
   h3 { font-size: 1.42rem; }
   .story-paragraph { font-size: 1rem; line-height: 1.85; }
   .story-transition { margin: 12px 8px; font-size: 1rem; }

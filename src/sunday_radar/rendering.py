@@ -21,10 +21,17 @@ DOMAIN_LABELS = {
     "prices": "물가",
     "jobs": "일자리",
     "daily_life": "생활",
+    "technology": "기술",
+    "health": "의료",
 }
 
-CHAPTER_KICKERS = ("첫 번째 장면", "두 번째 장면", "마지막 장면")
-RENDER_SCHEMA_VERSION = 3
+LENS_LABELS = {
+    "real_world_chain": "REALITY CHAIN",
+    "operational_risk": "FIELD RISK",
+    "game_changer": "GAME-CHANGER",
+    "standard": "WEEKLY SIGNAL",
+}
+RENDER_SCHEMA_VERSION = 5
 
 
 class RenderValidationError(RuntimeError):
@@ -81,7 +88,7 @@ def _render_site_into(
         "brief": brief,
         "editorial": editorial,
         "issue_path": issue_rel.as_posix(),
-        "chapter_kickers": CHAPTER_KICKERS,
+        "lens_labels": LENS_LABELS,
         "transitions": _transitions(brief),
     }
     html = env.get_template("issue.html.j2").render(**context)

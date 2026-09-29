@@ -26,17 +26,36 @@ def test_render_site_and_html_checks(tmp_path: Path) -> None:
     assert "이번 주의 이야기" in html
     assert brief.headline in html
     assert "OFFICIAL DESK" not in html
-    assert "첫 번째 장면" in html
+    assert "REALITY CHAIN" in html
     assert "함께 읽을 자료" in html
     assert "연결 영역" not in html
     assert "이렇게 연결됩니다" not in html
     assert "다음 가능성" not in html
+    assert "앞으로 확인할 것" not in html
+    assert "일 포착" not in html
+    assert "일에 걸쳐 이어졌습니다" not in html
     assert "<details" not in html
     if len(brief.issues) > 1:
         assert "story-transition" in html
     assert re.search(r"RADAR\s+\d", html) is None
     assert "#rates" not in html
     assert content_hash(brief) == content_hash(brief.model_copy())
+
+
+def test_game_changer_is_rendered_as_weekly_highlight(tmp_path: Path) -> None:
+    report_date = date(2026, 9, 28)
+    article = load_day(FIXTURE, report_date)
+    article.trends[0].keyword = "치매 신약 임상 성공"
+    article.trends[0].reason = "치매 신약이 임상 3상에서 치료 효과를 확인했습니다."
+    article.trends[0].categories = ["기업/산업"]
+    article.articles[0].title = "치매 신약 임상 3상 성공, 치료제 승인 절차 돌입"
+
+    brief = build_brief([article], report_date)
+    issue_path = render_site(brief, tmp_path, ROOT / "templates")
+    html = issue_path.read_text(encoding="utf-8")
+
+    assert "GAME-CHANGER · 주간 하이라이트" in html
+    assert "issue-card-game_changer" in html
 
 
 def test_html_checker_rejects_unsafe_links(tmp_path: Path) -> None:
@@ -65,17 +84,12 @@ def test_render_site_uses_validated_editorial_copy(tmp_path: Path) -> None:
                     "paragraphs": [
                         {
                             "kind": "fact",
-                            "text": (
-                                "근거 기사에서 확인할 수 있는 이번 주의 핵심 사실을 먼저 "
-                                "설명합니다."
-                            ),
+                            "text": "국채시장의 변화가 대출금리와 환율의 압력을 함께 키웁니다.",
                             "source_ids": [f"{issue.issue_id}-source-1"],
                         },
                         {
                             "kind": "interpretation",
-                            "text": (
-                                "이 사실이 시장과 생활에 어떤 질문을 남기는지 이어서 살펴봅니다."
-                            ),
+                            "text": "가계에는 이자 비용으로, 기업에는 자금 조달 부담으로 번집니다.",
                             "source_ids": [],
                         },
                     ],

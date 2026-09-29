@@ -3,7 +3,7 @@ from pathlib import Path
 
 from sunday_radar.adapters.morningnews import load_day
 from sunday_radar.analysis import build_brief
-from sunday_radar.domain import Article, SourceDay, TrendSignal
+from sunday_radar.domain import Article, EditorialLens, SourceDay, TrendSignal
 
 FIXTURE = Path(__file__).parent / "fixtures" / "morningnews"
 
@@ -16,6 +16,9 @@ def _source_day(
     *,
     title: str | None = None,
     reason: str = "관련 자료가 발표됐습니다.",
+    description: str = "",
+    categories: list[str] | None = None,
+    score: float | None = None,
 ) -> SourceDay:
     source_name = "한국은행" if source_kind == "bank_of_korea" else "테스트경제"
     article = Article(
@@ -23,6 +26,7 @@ def _source_day(
         title=title or keyword,
         url=f"https://example.com/{article_id}",
         source=source_name,
+        description=description,
         report_date=report_date,
         source_kind=source_kind,
     )
@@ -35,8 +39,8 @@ def _source_day(
             TrendSignal(
                 keyword=keyword,
                 reason=reason,
-                score=30 if source_kind == "morningnews" else 20,
-                categories=["경제/거시"],
+                score=score if score is not None else (30 if source_kind == "morningnews" else 20),
+                categories=categories or ["경제/거시"],
                 report_date=report_date,
                 article_ids=[article_id],
                 source_kind=source_kind,
@@ -45,12 +49,67 @@ def _source_day(
     )
 
 
+def test_editorial_lenses_prioritize_real_world_risk_and_game_changer() -> None:
+    report_date = date(2026, 9, 28)
+    oil = _source_day(
+        "morningnews",
+        report_date,
+        "중동 전쟁과 국제 유가",
+        "oil-shock",
+        reason="전쟁 격화로 국제 유가와 운송비 상승 압력이 커졌습니다.",
+        title="전쟁 격화에 국제 유가 급등, 물가 압력 확대",
+        categories=["국제", "경제/거시"],
+    )
+    permit = _source_day(
+        "morningnews",
+        report_date,
+        "재개발 인허가 소송",
+        "permit-lawsuit",
+        reason="재개발 허가 취소 소송으로 착공 일정이 멈췄습니다.",
+        title="재개발 허가 소송, 내년 착공 일정 변수",
+        categories=["정치", "부동산"],
+    )
+    treatment = _source_day(
+        "morningnews",
+        report_date,
+        "치매 신약 임상 성공",
+        "dementia-treatment",
+        reason="치매 신약이 임상 3상에서 치료 효과를 확인했습니다.",
+        title="치매 신약 임상 3상 성공, 치료제 승인 절차 돌입",
+        categories=["기업/산업"],
+        score=8,
+    )
+    promotion = _source_day(
+        "morningnews",
+        report_date,
+        "AI 업무협약",
+        "ai-mou",
+        reason="기업들이 AI 업무협약을 맺고 공동 캠페인을 시작했습니다.",
+        title="AI 업무협약 체결 기념행사",
+        categories=["기업/산업"],
+        score=50,
+    )
+
+    brief = build_brief([promotion, oil, permit, treatment], report_date)
+
+    assert [issue.editorial_lens for issue in brief.issues] == [
+        EditorialLens.GAME_CHANGER,
+        EditorialLens.REAL_WORLD_CHAIN,
+        EditorialLens.OPERATIONAL_RISK,
+    ]
+    assert "주유비·공공요금·장바구니 물가" in brief.issues[1].impact_chain
+    assert brief.issues[2].operational_risks
+    assert "내년" in brief.issues[2].timeline
+    assert treatment.trends[0].keyword == brief.issues[0].title
+    assert all(issue.title != "AI 업무협약" for issue in brief.issues)
+
+
 def test_build_brief_separates_evidence_and_extracts_domains() -> None:
     day = load_day(FIXTURE, date(2026, 9, 28))
     brief = build_brief([day], date(2026, 9, 28))
     assert brief.issues
     rates = next(issue for issue in brief.issues if issue.title.startswith("국채 금리"))
-    assert {block.kind.value for block in rates.blocks} == {"fact", "interpretation", "scenario"}
+    assert {block.kind.value for block in rates.blocks} == {"fact", "interpretation"}
     assert {"rates", "fx"}.issubset(rates.entities.market_domains)
     assert rates.active_days == 1
     assert len(brief.issues) <= 3
@@ -75,7 +134,20 @@ def test_narrative_copy_avoids_fragmented_label_language() -> None:
         assert "와 관련된 보도" not in copy
         assert "라는 내용이 주목받았습니다" not in copy
         assert "관련 발표가 실제 시행" not in copy
+        assert "일에 걸쳐 이어졌습니다" not in copy
+        assert "단정할 수는 없습니다" not in copy
         assert sum(block.kind.value == "interpretation" for block in issue.blocks) <= 1
+
+
+def test_article_descriptions_are_plain_text_before_editorial_use() -> None:
+    report_date = date(2026, 9, 28)
+    day = _source_day("morningnews", report_date, "주택 금리", "housing-rate")
+    day.articles[0].description = "<table><tr><td>대출&nbsp;부담</td></tr></table>\n  확대"
+
+    brief = build_brief([day], report_date)
+
+    assert brief.issues[0].sources[0].description == "대출 부담 확대"
+    assert "<table" not in brief.issues[0].sources[0].description
 
 
 def test_brief_accepts_official_source_and_counts_unique_dates() -> None:

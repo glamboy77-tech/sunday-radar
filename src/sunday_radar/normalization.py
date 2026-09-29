@@ -3,7 +3,10 @@ from __future__ import annotations
 import hashlib
 import re
 import unicodedata
+from html import unescape
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+from bs4 import BeautifulSoup
 
 TRACKING_PARAMS = {"fbclid", "gclid", "oc", "ref", "source"}
 
@@ -12,6 +15,11 @@ def normalize_text(value: str) -> str:
     value = unicodedata.normalize("NFKC", value).lower().strip()
     value = re.sub(r"[^0-9a-z가-힣%+]+", " ", value)
     return re.sub(r"\s+", " ", value).strip()
+
+
+def clean_summary_text(value: str) -> str:
+    text = BeautifulSoup(unescape(value), "html.parser").get_text(" ", strip=True)
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def canonical_url(value: str) -> str:

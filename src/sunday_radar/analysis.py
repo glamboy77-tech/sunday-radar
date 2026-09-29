@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta
 from sunday_radar.domain import (
     Article,
     Certainty,
+    EditorialLens,
     EntitySet,
     EvidenceBlock,
     EvidenceType,
@@ -16,7 +17,7 @@ from sunday_radar.domain import (
     TrendSignal,
     WeeklyBrief,
 )
-from sunday_radar.normalization import normalize_text, stable_hash
+from sunday_radar.normalization import clean_summary_text, normalize_text, stable_hash
 
 STOPWORDS = {"관련", "확대", "상승", "하락", "추진", "발표", "논란", "정부", "이번주"}
 REJECTED_KEYWORDS = {
@@ -40,6 +41,17 @@ DOMAIN_TERMS = {
     "prices": ("물가", "가격", "유가", "관세", "원유"),
     "jobs": ("고용", "취업", "채용", "임금", "실업"),
     "daily_life": ("교통", "교육", "의료", "안전", "대출", "서비스", "시장"),
+    "technology": (
+        "ai",
+        "인공지능",
+        "로봇",
+        "양자",
+        "핵융합",
+        "자율주행",
+        "우주",
+        "반도체",
+    ),
+    "health": ("치매", "알츠하이머", "신약", "치료제", "백신", "임상", "유전자", "의료"),
 }
 PLACE_TERMS = (
     "서울",
@@ -88,9 +100,121 @@ IMPACT_COPY = {
         "제도가 언제 어떤 범위로 시행되는지에 따라 가계 부담과 이용할 수 있는 서비스가 달라집니다.",
         "시행일과 현장 적용 범위",
     ),
+    "technology": (
+        "기술의 성능과 비용 구조가 바뀌면 기존 제품과 일자리, 산업의 경쟁 기준도 다시 짜입니다.",
+        "실제 성능·가격·도입 속도",
+    ),
+    "health": (
+        "치료 선택지가 달라지면 환자와 가족의 돌봄 시간, 의료비, 삶의 질이 함께 바뀝니다.",
+        "승인 범위·치료 효과·접근 비용",
+    ),
+}
+
+GAME_CHANGER_DOMAIN_TERMS = (
+    "ai",
+    "인공지능",
+    "로봇",
+    "양자",
+    "핵융합",
+    "자율주행",
+    "우주",
+    "치매",
+    "알츠하이머",
+    "신약",
+    "치료제",
+    "백신",
+    "임상",
+    "유전자",
+)
+GAME_CHANGER_BREAKTHROUGH_TERMS = (
+    "세계 최초",
+    "국내 최초",
+    "최초 승인",
+    "규제기관 승인",
+    "치료제 승인",
+    "신약 승인",
+    "fda 허가",
+    "품목허가",
+    "허가 획득",
+    "임상 3상",
+    "임상 성공",
+    "치료 효과",
+    "상용화",
+    "성능 돌파",
+    "신기록",
+    "새 모델 공개",
+    "정식 출시",
+    "완치",
+    "혁신 치료",
+)
+OPERATIONAL_TERMS = (
+    "재판",
+    "판결",
+    "소송",
+    "수사",
+    "기소",
+    "규제",
+    "법안",
+    "시행령",
+    "허가",
+    "인가",
+    "고시",
+    "입찰",
+    "유찰",
+    "착공",
+    "정비계획",
+    "사업시행",
+    "심의",
+)
+LOW_SIGNAL_TERMS = (
+    "업무협약",
+    "mou",
+    "파트너 선정",
+    "캠페인",
+    "기념행사",
+    "수상",
+    "홍보대사",
+    "팝업스토어",
+    "법카",
+    "작품 논란",
+    "연예계 논란",
+    "전문가 전망",
+    "만장일치",
+    "가격 전망",
+)
+
+CHAIN_DOMAINS = {"prices", "rates", "fx", "real_estate", "jobs", "daily_life"}
+CHAIN_STEPS = {
+    "prices": ["원유·원자재·운송비 압력", "기업의 원가와 배송비", "주유비·공공요금·장바구니 물가"],
+    "rates": ["국채금리와 시중금리", "은행의 조달비용과 대출금리", "이자 부담과 소비·주거 여력"],
+    "fx": ["달러 수요와 원화 가치", "수입 원가와 해외 결제 비용", "식품·에너지·여행 지출"],
+    "real_estate": ["금융·공급 정책 변화", "대출 한도와 사업비", "거래·분양·주거비 선택지"],
+    "jobs": ["기업의 비용과 투자 계획", "채용·임금·근무 조건", "가계 소득과 소비 여력"],
+    "daily_life": ["정책과 서비스 조건 변화", "현장 적용 범위와 이용 가격", "가계 부담과 선택지"],
+}
+OPERATIONAL_RISK_COPY = {
+    "재판": "재판 결과와 불복 절차가 의사결정 시점을 늦출 수 있음",
+    "판결": "판결 내용과 후속 절차가 사업의 법적 전제를 바꿀 수 있음",
+    "소송": "소송 기간과 가처분 여부가 계약·착공 일정을 묶을 수 있음",
+    "수사": "수사 범위가 넓어지면 승인과 경영 판단이 보수적으로 바뀔 수 있음",
+    "기소": "기소 이후 재판 일정이 책임자와 사업 의사결정의 변수로 남음",
+    "규제": "규제의 적용 대상과 시행 시점이 비용과 사업 가능 범위를 바꿈",
+    "법안": "법안의 통과 여부와 하위 규정이 실제 시행 시점을 좌우함",
+    "시행령": "시행령의 세부 기준이 현장 비용과 준비 기간을 결정함",
+    "허가": "허가 조건과 처리 기간이 착공·영업 시작의 병목이 됨",
+    "인가": "인가 범위와 조건이 자금 집행과 사업 개시 시점을 좌우함",
+    "고시": "고시 확정 전후로 적용 범위와 준비 일정이 갈릴 수 있음",
+    "입찰": "입찰 조건과 경쟁 구도가 사업자 선정과 원가를 결정함",
+    "유찰": "유찰이 반복되면 사업자 선정과 전체 일정이 뒤로 밀림",
+    "착공": "착공 전 인허가와 자금 조달이 실제 일정의 마지막 관문임",
+    "정비계획": "정비계획 확정 속도가 분담금 산정과 후속 인허가를 좌우함",
+    "사업시행": "사업시행 절차가 지연되면 이주·착공·분양 일정이 함께 밀림",
+    "심의": "심의 통과 여부와 보완 요구가 설계·비용·일정을 바꿈",
 }
 
 DOMAIN_NARRATIVE = {
+    "health": ("치료의 기준을 바꿀 뉴스가 일상으로 들어오는 주", "치료 선택지와 돌봄 비용"),
+    "technology": ("기술의 도약이 산업의 규칙을 다시 쓰는 주", "기술과 일상의 변화"),
     "stocks": ("기업의 기대가 시장의 온도를 바꾸는 주", "기업과 투자 심리"),
     "fx": ("바깥의 변화가 원화와 생활비로 번지는 주", "환율과 생활비"),
     "rates": ("금리의 방향이 자산과 생활의 온도를 바꾸는 주", "금리와 가계의 선택"),
@@ -101,6 +225,8 @@ DOMAIN_NARRATIVE = {
     "daily_life": ("정책과 시장의 변화가 일상에 닿는 주", "시장과 일상의 변화"),
 }
 NARRATIVE_DOMAIN_PRIORITY = (
+    "health",
+    "technology",
     "rates",
     "real_estate",
     "prices",
@@ -224,7 +350,7 @@ def _source_links(article_ids: set[str], articles: dict[str, Article]) -> list[S
                 source=article.source,
                 url=article.url,
                 source_kind=article.source_kind,
-                description=article.description[:1200],
+                description=clean_summary_text(article.description)[:1200],
                 report_date=article.report_date,
             )
         )
@@ -250,6 +376,72 @@ def _display_title(signal: TrendSignal, sources: list[SourceLink]) -> str:
     return keyword
 
 
+def _editorial_profile(
+    text: str,
+    category: str,
+    domains: list[str],
+    base_score: float,
+) -> tuple[EditorialLens, list[str], list[str], list[str], list[str], float]:
+    normalized = normalize_text(text)
+    technology_terms = [term for term in GAME_CHANGER_DOMAIN_TERMS if term in normalized]
+    breakthrough_terms = [term for term in GAME_CHANGER_BREAKTHROUGH_TERMS if term in normalized]
+    operational_terms = [term for term in OPERATIONAL_TERMS if term in normalized]
+    low_signal_count = sum(term in normalized for term in LOW_SIGNAL_TERMS)
+
+    game_changer_signals: list[str] = []
+    if technology_terms and breakthrough_terms:
+        game_changer_signals = [
+            f"{technology_terms[0]} 분야의 {breakthrough_terms[0]} 신호",
+            "기존 성능·비용·치료 선택지를 바꿀 가능성",
+        ]
+
+    operational_risks = [OPERATIONAL_RISK_COPY[term] for term in operational_terms[:2]]
+    timeline = sorted(
+        set(
+            re.findall(
+                r"(?:20\d{2}년(?:\s*\d{1,2}월)?|\d{1,2}월|다음 달|내년|오늘|내일|이번 주)",
+                text,
+            )
+        )
+    )
+
+    chain_domain = max(
+        (domain for domain in CHAIN_STEPS if domain in domains),
+        key=lambda domain: (
+            sum(normalized.count(term) for term in DOMAIN_TERMS[domain]),
+            -list(CHAIN_STEPS).index(domain),
+        ),
+        default=None,
+    )
+    impact_chain = CHAIN_STEPS[chain_domain] if chain_domain else []
+    chain_candidate = bool(chain_domain and category in {"국제", "경제/거시", "정치", "부동산"})
+
+    if game_changer_signals:
+        lens = EditorialLens.GAME_CHANGER
+    elif operational_risks:
+        lens = EditorialLens.OPERATIONAL_RISK
+    elif chain_candidate:
+        lens = EditorialLens.REAL_WORLD_CHAIN
+    else:
+        lens = EditorialLens.STANDARD
+
+    lens_bonus = {
+        EditorialLens.GAME_CHANGER: 38,
+        EditorialLens.OPERATIONAL_RISK: 28,
+        EditorialLens.REAL_WORLD_CHAIN: 24,
+        EditorialLens.STANDARD: 0,
+    }[lens]
+    priority_score = max(0.0, min(150.0, base_score + lens_bonus - low_signal_count * 28))
+    return (
+        lens,
+        impact_chain,
+        operational_risks,
+        timeline,
+        game_changer_signals,
+        round(priority_score, 2),
+    )
+
+
 def _make_issue(
     signals: list[TrendSignal], articles: dict[str, Article], people: set[str]
 ) -> Issue:
@@ -268,7 +460,11 @@ def _make_issue(
     }
     combined = " ".join(
         [representative.keyword, representative.reason]
-        + [articles[item].title for item in sorted(ranking_article_ids) if item in articles]
+        + [
+            f"{articles[item].title} {clean_summary_text(articles[item].description)}"
+            for item in sorted(ranking_article_ids)
+            if item in articles
+        ]
     )
     entities = _entities(combined, people)
     category_counts: dict[str, int] = defaultdict(int)
@@ -291,8 +487,15 @@ def _make_issue(
         100.0,
         32 + len(days) * 11 + ranking_source_count * 4 + min(representative.score, 30) * 0.4,
     )
+    (
+        editorial_lens,
+        impact_chain,
+        operational_risks,
+        timeline,
+        game_changer_signals,
+        priority_score,
+    ) = _editorial_profile(combined, category, entities.market_domains, base_score)
     signal_kinds = sorted({signal.source_kind for signal in ranking_signals})
-    source_labels = [SOURCE_KIND_LABELS.get(kind, kind) for kind in signal_kinds]
     if not editorial_signals and signal_kinds == ["bank_of_korea"]:
         default_announcement = f"한국은행이 「{representative.keyword}」 자료를 발표했습니다."
         detail = "" if representative.reason == default_announcement else representative.reason
@@ -304,12 +507,10 @@ def _make_issue(
     else:
         recent_summary = representative.reason or representative.keyword
         if normalize_text(recent_summary) == normalize_text(representative.keyword) and sources:
-            recent_summary = sources[0].title
-        fact_text = (
-            f"이번 주 {'·'.join(source_labels)}에서 「{representative.keyword}」 관련 보도가 "
-            f"{len(days)}일에 걸쳐 이어졌습니다. 가장 최근 보도는 "
-            f"{recent_summary}에 주목했습니다."
-        )
+            recent_summary = sources[0].description or sources[0].title
+        fact_text = recent_summary.strip()
+        if fact_text and fact_text[-1] not in ".!?。":
+            fact_text += "."
     blocks = [
         EvidenceBlock(
             kind=EvidenceType.FACT, label="확인된 흐름", text=fact_text, certainty=Certainty.HIGH
@@ -341,25 +542,11 @@ def _make_issue(
             EvidenceBlock(
                 kind=EvidenceType.INTERPRETATION,
                 label="시장·생활 연결",
-                text="이 장면을 시장과 생활의 언어로 옮겨보면 이렇습니다. "
-                + " ".join(explanations),
+                text=" ".join(explanations),
                 certainty=Certainty.MEDIUM,
             )
         )
-    if entities.market_domains:
-        blocks.append(
-            EvidenceBlock(
-                kind=EvidenceType.SCENARIO,
-                label="가능 시나리오",
-                text=(
-                    "다만 뉴스가 반복됐다는 사실만으로 실제 영향의 방향과 크기를 단정할 수는 "
-                    "없습니다. 이 흐름이 이어지는지는 앞으로 나올 지표와 후속 조치로 확인해야 "
-                    "합니다."
-                ),
-                certainty=Certainty.LOW,
-            )
-        )
-    else:
+    if not entities.market_domains:
         watches.append("후속 공식 발표와 독립 출처의 추가 확인")
     return Issue(
         issue_id=stable_hash(normalize_text(representative.keyword))[:16],
@@ -373,42 +560,42 @@ def _make_issue(
         blocks=blocks,
         watch_variables=sorted(set(watches)),
         sources=sources,
+        editorial_lens=editorial_lens,
+        impact_chain=impact_chain,
+        operational_risks=operational_risks,
+        timeline=timeline,
+        game_changer_signals=game_changer_signals,
+        priority_score=priority_score,
     )
 
 
 def _select_primary(issues: list[Issue]) -> list[Issue]:
-    candidates = [issue for issue in issues if issue.sources and issue.entities.market_domains]
+    candidates = [
+        issue
+        for issue in issues
+        if issue.sources
+        and (
+            issue.editorial_lens != EditorialLens.STANDARD
+            or bool(set(issue.entities.market_domains) & CHAIN_DOMAINS)
+        )
+    ]
     if not candidates:
         return []
-    macro = next((issue for issue in candidates if issue.category == "경제/거시"), candidates[0])
-    selected = [macro]
-    narrative_candidates = [
-        issue
-        for issue in candidates
-        if issue.issue_id != macro.issue_id and issue.category in {"경제/거시", "부동산"}
-    ]
-    remaining = (
-        narrative_candidates
-        if len(narrative_candidates) >= 2
-        else [issue for issue in candidates if issue.issue_id != macro.issue_id]
+    ordered = sorted(
+        candidates,
+        key=lambda issue: (-issue.priority_score, -issue.score, -issue.active_days, issue.title),
     )
-    while remaining and len(selected) < 3:
-        known_domains = {
-            domain
-            for selected_issue in selected
-            for domain in selected_issue.entities.market_domains
-        }
-        next_issue = max(
-            remaining,
-            key=lambda issue: (
-                issue.score + 12 * len(known_domains & set(issue.entities.market_domains)),
-                issue.active_days,
-                issue.title,
-            ),
-        )
-        selected.append(next_issue)
-        remaining.remove(next_issue)
-    return selected
+    selected: list[Issue] = []
+    for lens in (
+        EditorialLens.GAME_CHANGER,
+        EditorialLens.REAL_WORLD_CHAIN,
+        EditorialLens.OPERATIONAL_RISK,
+    ):
+        match = next((issue for issue in ordered if issue.editorial_lens == lens), None)
+        if match is not None and match not in selected:
+            selected.append(match)
+    selected.extend(issue for issue in ordered if issue not in selected)
+    return selected[:3]
 
 
 def build_brief(days: list[SourceDay], as_of: date) -> WeeklyBrief:
@@ -469,7 +656,12 @@ def build_brief(days: list[SourceDay], as_of: date) -> WeeklyBrief:
             (_make_issue(cluster, article_map, people), {signal.source_kind for signal in cluster})
             for cluster in clusters
         ),
-        key=lambda item: (-item[0].score, -item[0].active_days, item[0].title),
+        key=lambda item: (
+            -item[0].priority_score,
+            -item[0].score,
+            -item[0].active_days,
+            item[0].title,
+        ),
     )
     issues = [issue for issue, _source_kinds in issue_records]
     editorial_issues = [
@@ -500,6 +692,7 @@ def build_brief(days: list[SourceDay], as_of: date) -> WeeklyBrief:
         for issue in issues
         if issue.issue_id not in primary_ids
         and issue.issue_id not in official_ids
+        and issue.priority_score >= 80
         and issue.category in {"부동산", "기업/산업", "생활/문화"}
     ][:5]
     available = sorted({day.report_date for day in days if day.source_kind == "morningnews"})
@@ -508,7 +701,10 @@ def build_brief(days: list[SourceDay], as_of: date) -> WeeklyBrief:
     reading_minutes = max(3, min(5, round((len(primary) * 180 + len(currents) * 90 + 300) / 500)))
     primary_domains = {domain for issue in primary for domain in issue.entities.market_domains}
     source_kinds = sorted({day.source_kind for day in days})
-    source_labels = ", ".join(SOURCE_KIND_LABELS.get(kind, kind) for kind in source_kinds)
+    source_labels = ", ".join(
+        "수집된 뉴스 자료" if kind == "morningnews" else SOURCE_KIND_LABELS.get(kind, kind)
+        for kind in source_kinds
+    )
     lead_domain = next(
         (domain for domain in NARRATIVE_DOMAIN_PRIORITY if domain in primary_domains), "daily_life"
     )

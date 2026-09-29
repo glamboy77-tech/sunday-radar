@@ -8,6 +8,12 @@
 
 `editorial.py`는 선택된 핵심 이슈와 출처를 evidence packet으로 제한한 뒤 OpenAI Responses API에 문장 편집을 요청합니다. 응답은 strict JSON Schema와 Pydantic 모델을 모두 통과해야 하며, 이슈 순서·출처 ID·숫자 검사를 추가로 거칩니다. 편집기는 이슈 선택이나 링크를 변경하지 못합니다.
 
+분석기는 각 Morning News 군집을 `real_world_chain`, `operational_risk`, `game_changer`,
+`standard` 중 하나로 분류합니다. 반복 일수와 원래 trend score는 보조 지표이며, 본편 세 자리는
+가능하면 Game-changer, 생활비 전달 경로, 현장 실무 리스크를 하나씩 배당합니다. 협약·행사·
+단순 전망 같은 저신호성 표현은 감점하고, 기술·과학·의료 뉴스는 분야 표지와 구체적인 돌파
+표지가 동시에 있을 때만 Game-changer로 인정합니다.
+
 분석기는 Morning News 신호를 먼저 군집화한 뒤 한국은행 자료를 처리합니다. 공식 자료는 허용 목록에 있는 좁은 주제가 정확히 하나의 뉴스 군집과 일치할 때만 근거로 연결하며, 모호한 경우 독립 군집으로 남깁니다. 결합된 공식 자료는 evidence와 source link를 보강하지만 본편의 대표 제목, 점수, 포착 기간에는 영향을 주지 않습니다.
 
 ```text

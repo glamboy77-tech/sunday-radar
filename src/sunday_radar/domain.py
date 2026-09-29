@@ -20,6 +20,13 @@ class Certainty(StrEnum):
     LOW = "low"
 
 
+class EditorialLens(StrEnum):
+    REAL_WORLD_CHAIN = "real_world_chain"
+    OPERATIONAL_RISK = "operational_risk"
+    GAME_CHANGER = "game_changer"
+    STANDARD = "standard"
+
+
 class Article(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -92,6 +99,12 @@ class Issue(BaseModel):
     blocks: list[EvidenceBlock]
     watch_variables: list[str]
     sources: list[SourceLink]
+    editorial_lens: EditorialLens = EditorialLens.STANDARD
+    impact_chain: list[str] = Field(default_factory=list)
+    operational_risks: list[str] = Field(default_factory=list)
+    timeline: list[str] = Field(default_factory=list)
+    game_changer_signals: list[str] = Field(default_factory=list)
+    priority_score: float = 0.0
 
 
 class WeeklyBrief(BaseModel):
