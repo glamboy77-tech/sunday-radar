@@ -279,7 +279,7 @@ def test_source_limit_keeps_editorial_and_official_links() -> None:
     }
 
 
-def test_unrelated_official_source_is_kept_in_official_desk() -> None:
+def test_unexplained_official_source_is_not_published_to_readers() -> None:
     report_date = date(2026, 9, 28)
     article = Article(
         stable_id="bok-stability",
@@ -307,8 +307,9 @@ def test_unrelated_official_source_is_kept_in_official_desk() -> None:
         ],
     )
     brief = build_brief([load_day(FIXTURE, report_date), official], report_date)
-    assert [issue.title for issue in brief.official_updates] == ["금융안정 상황"]
+    assert brief.official_updates == []
     assert all(issue.title != "금융안정 상황" for issue in brief.issues)
+    assert all(issue.title != "금융안정 상황" for issue in brief.currents)
 
 
 def test_official_releases_do_not_merge_on_generic_date_words() -> None:
@@ -327,11 +328,25 @@ def test_official_releases_do_not_merge_on_generic_date_words() -> None:
 
     brief = build_brief([first, second], date(2026, 9, 23))
 
-    assert {issue.title for issue in brief.official_updates} == {
-        "2026년 9월 금융안정 상황",
-        "2026년 9월 소비자동향조사 결과",
-    }
+    assert {issue.title for issue in brief.official_updates} == {"2026년 9월 소비자동향조사 결과"}
     assert all(issue.active_days == 1 for issue in brief.official_updates)
+
+
+def test_official_update_has_plain_language_reader_copy() -> None:
+    report_date = date(2026, 9, 28)
+    official = _source_day(
+        "bank_of_korea",
+        report_date,
+        "2026년 9월 소비자동향조사 결과",
+        "bok-consumer-reader-copy",
+        reason="소비자심리지수는 106.6으로 전월 대비 2.1p 상승했습니다.",
+    )
+
+    issue = build_brief([official], report_date).official_updates[0]
+
+    assert issue.reader_heading == "소비자가 느끼는 경기가 전월보다 나아졌다"
+    assert "실제 소비액이 아니라" in issue.reader_summary
+    assert "106.6" in issue.reader_summary
 
 
 def test_brief_coverage_uses_only_morning_news_dates() -> None:

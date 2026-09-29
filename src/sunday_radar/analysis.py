@@ -249,6 +249,15 @@ OFFICIAL_TOPIC_ALIASES = {
     "household_credit": ("가계신용",),
     "producer_prices": ("생산자물가지수", "생산자물가"),
 }
+PUBLIC_OFFICIAL_TOPICS = {
+    "base_rate",
+    "balance_of_payments",
+    "business_sentiment",
+    "consumer_sentiment",
+    "foreign_reserves",
+    "household_credit",
+    "producer_prices",
+}
 
 
 def _tokens(value: str) -> set[str]:
@@ -376,6 +385,57 @@ def _display_title(signal: TrendSignal, sources: list[SourceLink]) -> str:
     return keyword
 
 
+def _official_reader_copy(signal: TrendSignal) -> tuple[str, str]:
+    topics = _official_topics(f"{signal.keyword} {signal.reason}")
+    reason = signal.reason.strip().rstrip(".")
+    if "consumer_sentiment" in topics:
+        direction = (
+            "나아졌다" if "상승" in reason else "약해졌다" if "하락" in reason else "움직였다"
+        )
+        return (
+            f"소비자가 느끼는 경기가 전월보다 {direction}",
+            f"{reason}. 소비심리는 실제 소비액이 아니라, 가계가 소비와 큰 지출을 얼마나 "
+            "조심스럽게 보는지 보여주는 신호입니다.",
+        )
+    if "base_rate" in topics:
+        return (
+            "대출과 예금금리의 출발점이 확인됐다",
+            f"{reason}. 기준금리는 은행의 대출·예금금리와 가계의 이자 부담이 움직이는 "
+            "출발점입니다.",
+        )
+    if "producer_prices" in topics:
+        return (
+            "기업이 먼저 마주한 원가 압력이 확인됐다",
+            f"{reason}. 생산자물가는 기업이 재료와 상품을 들여오는 가격이라, 이후 소비자 "
+            "가격의 압력을 읽는 데 쓰입니다.",
+        )
+    if "household_credit" in topics:
+        return (
+            "가계 빚이 늘고 줄어든 방향이 확인됐다",
+            f"{reason}. 가계신용은 주택과 소비에 쓰인 빚의 규모를 보여줘 이자 부담과 소비 "
+            "여력을 함께 가늠하게 합니다.",
+        )
+    if "business_sentiment" in topics:
+        return (
+            "기업이 체감하는 경기 온도가 확인됐다",
+            f"{reason}. 기업심리는 채용과 설비투자를 늘릴지 미룰지 판단하는 분위기를 "
+            "보여주는 선행 신호입니다.",
+        )
+    if "balance_of_payments" in topics:
+        return (
+            "한국이 해외에서 번 돈과 쓴 돈의 차이가 나왔다",
+            f"{reason}. 국제수지는 수출입과 해외 투자에서 들어오고 나간 돈을 합쳐 원화와 "
+            "대외 건전성을 읽는 자료입니다.",
+        )
+    if "foreign_reserves" in topics:
+        return (
+            "외환시장 충격에 대응할 여력이 확인됐다",
+            f"{reason}. 외환보유액은 환율이 급하게 흔들릴 때 나라가 동원할 수 있는 외화 "
+            "완충 장치의 규모를 보여줍니다.",
+        )
+    return "", ""
+
+
 def _editorial_profile(
     text: str,
     category: str,
@@ -496,7 +556,10 @@ def _make_issue(
         priority_score,
     ) = _editorial_profile(combined, category, entities.market_domains, base_score)
     signal_kinds = sorted({signal.source_kind for signal in ranking_signals})
+    reader_heading = ""
+    reader_summary = ""
     if not editorial_signals and signal_kinds == ["bank_of_korea"]:
+        reader_heading, reader_summary = _official_reader_copy(representative)
         default_announcement = f"한국은행이 「{representative.keyword}」 자료를 발표했습니다."
         detail = "" if representative.reason == default_announcement else representative.reason
         fact_text = (
@@ -566,6 +629,8 @@ def _make_issue(
         timeline=timeline,
         game_changer_signals=game_changer_signals,
         priority_score=priority_score,
+        reader_heading=reader_heading,
+        reader_summary=reader_summary,
     )
 
 
@@ -663,7 +728,6 @@ def build_brief(days: list[SourceDay], as_of: date) -> WeeklyBrief:
             item[0].title,
         ),
     )
-    issues = [issue for issue, _source_kinds in issue_records]
     editorial_issues = [
         issue for issue, source_kinds in issue_records if "morningnews" in source_kinds
     ]
@@ -685,16 +749,29 @@ def build_brief(days: list[SourceDay], as_of: date) -> WeeklyBrief:
         if issue.issue_id not in primary_ids
         and "morningnews" not in source_kinds
         and "bank_of_korea" in source_kinds
-    ][:3]
+        and bool(_official_topics(issue.title) & PUBLIC_OFFICIAL_TOPICS)
+        and bool(issue.reader_heading and issue.reader_summary)
+    ][:2]
     official_ids = {issue.issue_id for issue in official_updates}
     currents = [
         issue
-        for issue in issues
+        for issue, source_kinds in issue_records
         if issue.issue_id not in primary_ids
         and issue.issue_id not in official_ids
-        and issue.priority_score >= 80
-        and issue.category in {"부동산", "기업/산업", "생활/문화"}
-    ][:5]
+        and "morningnews" in source_kinds
+        and issue.priority_score >= 75
+        and issue.sources
+        and not any(
+            term
+            in normalize_text(
+                " ".join(
+                    [issue.title]
+                    + [f"{source.title} {source.description}" for source in issue.sources]
+                )
+            )
+            for term in LOW_SIGNAL_TERMS
+        )
+    ][:6]
     available = sorted({day.report_date for day in days if day.source_kind == "morningnews"})
     expected = [as_of - timedelta(days=offset) for offset in range(6, -1, -1)]
     missing = [day for day in expected if day not in available]

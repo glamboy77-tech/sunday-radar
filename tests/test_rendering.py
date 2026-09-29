@@ -7,7 +7,7 @@ import pytest
 
 from sunday_radar.adapters.morningnews import load_day
 from sunday_radar.analysis import build_brief
-from sunday_radar.domain import EditorialDraft
+from sunday_radar.domain import Article, EditorialDraft, SourceDay, TrendSignal
 from sunday_radar.rendering import RenderValidationError, check_html, content_hash, render_site
 
 ROOT = Path(__file__).parents[1]
@@ -56,6 +56,58 @@ def test_game_changer_is_rendered_as_weekly_highlight(tmp_path: Path) -> None:
 
     assert "GAME-CHANGER · 주간 하이라이트" in html
     assert "issue-card-game_changer" in html
+
+
+def test_extra_radar_renders_source_links(tmp_path: Path) -> None:
+    brief = build_brief([load_day(FIXTURE, date(2026, 9, 28))], date(2026, 9, 28))
+    extra = brief.issues[0].model_copy(update={"title": "추가로 볼 생활경제 변화"})
+    brief = brief.model_copy(update={"currents": [extra]})
+
+    issue_path = render_site(brief, tmp_path, ROOT / "templates")
+    html = issue_path.read_text(encoding="utf-8")
+
+    assert "EXTRA RADAR" in html
+    assert "추가로 볼 생활경제 변화" in html
+    assert str(extra.sources[0].url) in html
+    assert extra.sources[0].source in html
+
+
+def test_official_indicator_is_rendered_in_plain_language(tmp_path: Path) -> None:
+    report_date = date(2026, 9, 28)
+    article = Article(
+        stable_id="bok-consumer-render",
+        title="2026년 9월 소비자동향조사 결과",
+        url="https://www.bok.or.kr/consumer",
+        source="한국은행",
+        report_date=report_date,
+        source_kind="bank_of_korea",
+    )
+    official = SourceDay(
+        source_kind="bank_of_korea",
+        report_date=report_date,
+        files=[Path("bok-consumer.json")],
+        articles=[article],
+        trends=[
+            TrendSignal(
+                keyword="2026년 9월 소비자동향조사 결과",
+                reason="소비자심리지수는 106.6으로 전월 대비 2.1p 상승했습니다.",
+                score=20,
+                categories=["경제/거시"],
+                report_date=report_date,
+                article_ids=[article.stable_id],
+                source_kind="bank_of_korea",
+            )
+        ],
+    )
+    brief = build_brief([load_day(FIXTURE, report_date), official], report_date)
+
+    issue_path = render_site(brief, tmp_path, ROOT / "templates")
+    html = issue_path.read_text(encoding="utf-8")
+
+    assert "ECONOMY IN PLAIN WORDS" in html
+    assert "소비자가 느끼는 경기가 전월보다 나아졌다" in html
+    assert "실제 소비액이 아니라" in html
+    assert "2024년 산업연관표" not in html
 
 
 def test_html_checker_rejects_unsafe_links(tmp_path: Path) -> None:

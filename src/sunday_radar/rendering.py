@@ -31,7 +31,7 @@ LENS_LABELS = {
     "game_changer": "GAME-CHANGER",
     "standard": "WEEKLY SIGNAL",
 }
-RENDER_SCHEMA_VERSION = 5
+RENDER_SCHEMA_VERSION = 6
 
 
 class RenderValidationError(RuntimeError):

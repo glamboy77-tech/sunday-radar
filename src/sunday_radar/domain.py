@@ -105,6 +105,8 @@ class Issue(BaseModel):
     timeline: list[str] = Field(default_factory=list)
     game_changer_signals: list[str] = Field(default_factory=list)
     priority_score: float = 0.0
+    reader_heading: str = ""
+    reader_summary: str = ""
 
 
 class WeeklyBrief(BaseModel):

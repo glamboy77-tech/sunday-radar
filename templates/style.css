@@ -80,6 +80,10 @@ h3 { margin: 0; font-family: Georgia, "Noto Serif KR", serif; font-size: 1.65rem
 .reading-notes h3 { margin-top: 8px; font-size: 1.22rem; }
 .reading-notes article > p:last-of-type { margin-bottom: 8px; color: #424842; font-size: .92rem; }
 .text-link { color: var(--green); font-size: .85rem; font-weight: 800; }
+.current-links { display: grid; gap: 7px; margin-top: 12px; }
+.current-links .text-link { width: fit-content; text-decoration: none; }
+.current-links .text-link:hover { text-decoration: underline; }
+.current-links small { color: var(--muted); font-size: .72rem; font-weight: 600; }
 .current-meta { margin: 0; color: var(--muted); font-size: .74rem; font-weight: 700; }
 .section-intro { max-width: 580px; margin: 16px 0 24px; color: var(--muted); }
 .method { margin: 58px 0 28px; padding: 20px; border: 1px solid var(--line); color: var(--muted); font-size: .85rem; }
