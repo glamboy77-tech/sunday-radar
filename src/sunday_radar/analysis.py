@@ -57,35 +57,35 @@ POLICY_TERMS = ("법", "정책", "규제", "관세", "제재", "협의체", "임
 COMPANY_SUFFIXES = ("전자", "그룹", "은행", "에어로", "하이닉스", "자동차", "전기")
 IMPACT_COPY = {
     "stocks": (
-        "기업 실적 기대와 위험 선호를 통해 주가 변동성으로 연결될 수 있습니다.",
+        "기업 실적에 대한 기대와 투자자의 위험 선호가 달라지면서 주가의 움직임도 커질 수 있습니다.",
         "실적 발표와 수급 변화",
     ),
     "fx": (
-        "금리 차이와 안전자산 선호를 거쳐 원화 환율에 영향을 줄 수 있습니다.",
+        "나라별 금리 차이와 안전자산 선호는 원화 가치와 환전 비용에까지 이어집니다.",
         "주요국 금리와 원·달러 환율",
     ),
     "rates": (
-        "물가 기대와 국채 수급을 통해 대출·채권 금리에 전달될 수 있습니다.",
+        "국채시장의 변화는 채권 금리를 거쳐 가계와 기업이 마주하는 대출 금리에 전달됩니다.",
         "국채 입찰과 중앙은행 발언",
     ),
     "crypto": (
-        "유동성과 위험 선호 변화가 가상자산 변동성에 반영될 수 있습니다.",
+        "시중 유동성과 위험 선호가 바뀌면 가상자산 가격도 더 크게 흔들릴 수 있습니다.",
         "달러 유동성과 규제 발표",
     ),
     "real_estate": (
-        "대출 여건과 공급 기대를 통해 거래량과 주거 비용에 영향을 줄 수 있습니다.",
+        "대출 여건과 새 주택 공급에 대한 기대가 달라지면 거래량과 주거 비용도 함께 움직입니다.",
         "거래량·대출금리·후속 시행규칙",
     ),
     "prices": (
-        "수입 비용과 공급망을 거쳐 소비자 가격으로 전가될 가능성이 있습니다.",
+        "수입 비용과 운송비의 변화는 시차를 두고 소비자가 지불하는 가격에 반영될 수 있습니다.",
         "원자재·운임·소비자물가",
     ),
     "jobs": (
-        "기업 비용과 투자 계획을 통해 채용과 임금에 영향을 줄 수 있습니다.",
+        "기업의 비용 부담과 투자 계획은 채용 규모와 임금 협상에 영향을 줍니다.",
         "채용 공고와 고용 지표",
     ),
     "daily_life": (
-        "제도 시행 방식에 따라 가계 비용과 이용 가능한 서비스가 달라질 수 있습니다.",
+        "제도가 언제 어떤 범위로 시행되는지에 따라 가계 부담과 이용할 수 있는 서비스가 달라집니다.",
         "시행일과 현장 적용 범위",
     ),
 }
@@ -224,6 +224,8 @@ def _source_links(article_ids: set[str], articles: dict[str, Article]) -> list[S
                 source=article.source,
                 url=article.url,
                 source_kind=article.source_kind,
+                description=article.description[:1200],
+                report_date=article.report_date,
             )
         )
     if len(links) <= 4:
@@ -300,10 +302,13 @@ def _make_issue(
             f"{detail}"
         ).strip()
     else:
+        recent_summary = representative.reason or representative.keyword
+        if normalize_text(recent_summary) == normalize_text(representative.keyword) and sources:
+            recent_summary = sources[0].title
         fact_text = (
-            f"{'·'.join(source_labels)}에서 '{representative.keyword}' 이슈가 "
-            f"{len(days)}일 동안 포착됐습니다. 최근 신호는 "
-            f"“{representative.reason or representative.keyword}”입니다."
+            f"이번 주 {'·'.join(source_labels)}에서 「{representative.keyword}」 관련 보도가 "
+            f"{len(days)}일에 걸쳐 이어졌습니다. 가장 최근 보도는 "
+            f"{recent_summary}에 주목했습니다."
         )
     blocks = [
         EvidenceBlock(
@@ -318,31 +323,38 @@ def _make_issue(
             EvidenceBlock(
                 kind=EvidenceType.OFFICIAL_CLAIM,
                 label="공식 자료",
-                text=official_signal.reason or official_signal.keyword,
+                text=(
+                    "같은 주제의 한국은행 자료도 확인됩니다. "
+                    f"{official_signal.reason or official_signal.keyword}"
+                ),
                 certainty=Certainty.HIGH,
             )
         )
     watches: list[str] = []
+    explanations: list[str] = []
     for domain in entities.market_domains[:3]:
         explanation, watch = IMPACT_COPY[domain]
+        explanations.append(explanation)
+        watches.append(watch)
+    if explanations:
         blocks.append(
             EvidenceBlock(
                 kind=EvidenceType.INTERPRETATION,
                 label="시장·생활 연결",
-                text=explanation,
+                text="이 장면을 시장과 생활의 언어로 옮겨보면 이렇습니다. "
+                + " ".join(explanations),
                 certainty=Certainty.MEDIUM,
             )
         )
-        watches.append(watch)
     if entities.market_domains:
         blocks.append(
             EvidenceBlock(
                 kind=EvidenceType.SCENARIO,
                 label="가능 시나리오",
                 text=(
-                    "관련 발표가 실제 시행으로 이어지는 경우 영향 영역의 변동성이 "
-                    "커질 수 있습니다. 반대로 후속 조치가 지연되면 단기 영향은 "
-                    "제한될 수 있습니다."
+                    "다만 뉴스가 반복됐다는 사실만으로 실제 영향의 방향과 크기를 단정할 수는 "
+                    "없습니다. 이 흐름이 이어지는지는 앞으로 나올 지표와 후속 조치로 확인해야 "
+                    "합니다."
                 ),
                 certainty=Certainty.LOW,
             )

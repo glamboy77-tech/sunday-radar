@@ -66,6 +66,18 @@ def test_single_token_title_uses_reason_for_context() -> None:
     assert all(issue.title != "국채" for issue in brief.issues)
 
 
+def test_narrative_copy_avoids_fragmented_label_language() -> None:
+    day = load_day(FIXTURE, date(2026, 9, 28))
+    brief = build_brief([day], date(2026, 9, 28))
+
+    for issue in brief.issues:
+        copy = " ".join(block.text for block in issue.blocks)
+        assert "와 관련된 보도" not in copy
+        assert "라는 내용이 주목받았습니다" not in copy
+        assert "관련 발표가 실제 시행" not in copy
+        assert sum(block.kind.value == "interpretation" for block in issue.blocks) <= 1
+
+
 def test_brief_accepts_official_source_and_counts_unique_dates() -> None:
     report_date = date(2026, 9, 28)
     article = Article(

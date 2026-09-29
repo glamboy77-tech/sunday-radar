@@ -15,6 +15,11 @@ class Settings:
     public_base_url: str
     telegram_bot_token: str | None
     telegram_chat_id: str | None
+    editor_mode: str = "llm-with-fallback"
+    openai_api_key: str | None = None
+    openai_model: str = "gpt-5.6-terra"
+    openai_base_url: str = "https://api.openai.com/v1"
+    editorial_cache_dir: Path | None = None
 
     @classmethod
     def load(cls) -> Settings:
@@ -40,4 +45,16 @@ class Settings:
             ).rstrip("/"),
             telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN") or None,
             telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID") or None,
+            editor_mode=os.getenv("SUNDAY_RADAR_EDITOR_MODE", "llm-with-fallback"),
+            openai_api_key=os.getenv("OPENAI_API_KEY") or None,
+            openai_model=os.getenv("SUNDAY_RADAR_OPENAI_MODEL", "gpt-5.6-terra"),
+            openai_base_url=os.getenv(
+                "SUNDAY_RADAR_OPENAI_BASE_URL", "https://api.openai.com/v1"
+            ).rstrip("/"),
+            editorial_cache_dir=Path(
+                os.getenv(
+                    "SUNDAY_RADAR_EDITORIAL_CACHE_DIR",
+                    project_root / "var" / "editorial-cache",
+                )
+            ),
         )

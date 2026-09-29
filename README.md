@@ -24,7 +24,9 @@ sunday-radar check-html docs
 sunday-radar telegram-preview --as-of YYYY-MM-DD
 ```
 
-`collect-sources`는 한국은행 공식 RSS를 `var/sources/bank_of_korea/`에 날짜별 JSON으로 저장합니다. `build` 자체는 네트워크를 호출하지 않고 Morning News와 이미 수집된 공식 자료 캐시를 import·분석해 HTML을 생성합니다. 실제 Telegram 전송은 `telegram-preview --send`를 명시하고 환경 변수까지 설정한 경우에만 가능합니다.
+`collect-sources`는 한국은행 공식 RSS를 `var/sources/bank_of_korea/`에 날짜별 JSON으로 저장합니다. `build`는 Morning News와 이미 수집된 공식 자료 캐시를 import·분석하며, LLM 편집이 활성화되고 유효한 캐시가 없을 때만 OpenAI API를 호출합니다. `rules` 모드의 build는 네트워크를 호출하지 않습니다. 실제 Telegram 전송은 `telegram-preview --send`를 명시하고 환경 변수까지 설정한 경우에만 가능합니다.
+
+기본 편집 모드는 `llm-with-fallback`입니다. `OPENAI_API_KEY`가 있으면 규칙 기반으로 선택한 이슈와 출처 범위 안에서 OpenAI가 제목·도입·본문·전환·맺음말을 편집합니다. 응답은 구조, 이슈 순서, source ID와 숫자 검사를 통과해야 하며 실패하거나 키가 없으면 기존 규칙 원고를 사용합니다. `SUNDAY_RADAR_EDITOR_MODE=rules`는 LLM을 완전히 끄고, `llm-required`는 검증된 원고가 없을 때 빌드를 실패시킵니다. 동일 입력·prompt·model의 원고는 `var/editorial-cache/`에서 재사용합니다.
 
 `deploy/sunday-radar.service` 예시는 예약 발행 전에 `collect-sources`를 먼저 실행하고, 수집이 성공한 경우에만 `build`를 실행합니다. 발행 가능 여부와 누락일은 본편 입력인 Morning News 날짜를 기준으로 판단하며, 공식 자료만 있는 날짜는 coverage를 채우지 않습니다.
 

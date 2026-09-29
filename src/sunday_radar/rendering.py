@@ -10,7 +10,7 @@ from urllib.parse import unquote, urlsplit
 from bs4 import BeautifulSoup
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from sunday_radar.domain import WeeklyBrief
+from sunday_radar.domain import EditorialDraft, WeeklyBrief
 
 DOMAIN_LABELS = {
     "stocks": "주식",
@@ -23,9 +23,8 @@ DOMAIN_LABELS = {
     "daily_life": "생활",
 }
 
-CERTAINTY_LABELS = {"high": "높음", "medium": "중간", "low": "낮음"}
-
 CHAPTER_KICKERS = ("첫 번째 장면", "두 번째 장면", "마지막 장면")
+RENDER_SCHEMA_VERSION = 3
 
 
 class RenderValidationError(RuntimeError):
@@ -43,24 +42,30 @@ def _transitions(brief: WeeklyBrief) -> list[str]:
         if shared:
             subject = DOMAIN_LABELS[shared]
             transitions.append(
-                f"이 흐름은 {subject}에서 멈추지 않습니다. 이제 시선을 "
-                f"「{following.title}」로 옮겨보겠습니다."
+                f"여기서 이야기는 {subject}이라는 공통 지점을 따라 다음 장면으로 이어집니다. "
+                f"다음 장면은 「{following.title}」입니다."
             )
         else:
             transitions.append(
-                f"한편 시장의 시선은 또 다른 장면으로 이동합니다. 다음은 "
-                f"「{following.title}」입니다."
+                f"같은 한 주를 다른 각도에서 보면 「{following.title}」라는 장면도 만납니다."
             )
     return transitions
 
 
-def content_hash(brief: WeeklyBrief) -> str:
+def content_hash(brief: WeeklyBrief, editorial: EditorialDraft | None = None) -> str:
     payload = brief.model_dump(mode="json", exclude={"generated_at"})
+    payload["render_schema_version"] = RENDER_SCHEMA_VERSION
+    payload["editorial"] = editorial.model_dump(mode="json") if editorial else None
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode()
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _render_site_into(brief: WeeklyBrief, output_dir: Path, template_dir: Path) -> Path:
+def _render_site_into(
+    brief: WeeklyBrief,
+    output_dir: Path,
+    template_dir: Path,
+    editorial: EditorialDraft | None = None,
+) -> Path:
     env = Environment(
         loader=FileSystemLoader(template_dir),
         autoescape=select_autoescape(["html", "xml"]),
@@ -74,9 +79,8 @@ def _render_site_into(brief: WeeklyBrief, output_dir: Path, template_dir: Path) 
     assets.mkdir(parents=True, exist_ok=True)
     context = {
         "brief": brief,
+        "editorial": editorial,
         "issue_path": issue_rel.as_posix(),
-        "domain_labels": DOMAIN_LABELS,
-        "certainty_labels": CERTAINTY_LABELS,
         "chapter_kickers": CHAPTER_KICKERS,
         "transitions": _transitions(brief),
     }
@@ -88,7 +92,12 @@ def _render_site_into(brief: WeeklyBrief, output_dir: Path, template_dir: Path) 
     return issue_path
 
 
-def render_site(brief: WeeklyBrief, output_dir: Path, template_dir: Path) -> Path:
+def render_site(
+    brief: WeeklyBrief,
+    output_dir: Path,
+    template_dir: Path,
+    editorial: EditorialDraft | None = None,
+) -> Path:
     output_dir.parent.mkdir(parents=True, exist_ok=True)
     staging_dir = Path(
         tempfile.mkdtemp(prefix=f".{output_dir.name}-staging-", dir=output_dir.parent)
@@ -97,7 +106,7 @@ def render_site(brief: WeeklyBrief, output_dir: Path, template_dir: Path) -> Pat
     try:
         if output_dir.exists():
             shutil.copytree(output_dir, staging_dir, dirs_exist_ok=True)
-        staged_issue = _render_site_into(brief, staging_dir, template_dir)
+        staged_issue = _render_site_into(brief, staging_dir, template_dir, editorial)
         errors = check_html(staging_dir)
         if errors:
             raise RenderValidationError(errors)

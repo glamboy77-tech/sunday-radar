@@ -12,6 +12,7 @@ from sunday_radar.adapters.bank_of_korea import collect_window as collect_bank_o
 from sunday_radar.analysis import build_brief
 from sunday_radar.db import Publication, create_db, import_days
 from sunday_radar.domain import SourceDay
+from sunday_radar.editorial import EditorialError, edit_brief
 from sunday_radar.rendering import RenderValidationError, content_hash, render_site
 from sunday_radar.rendering import check_html as validate_html
 from sunday_radar.settings import Settings
@@ -105,7 +106,16 @@ def build(
     settings = Settings.load()
     days, session = _load_and_import(target, settings)
     brief = build_brief(days, target)
-    digest = content_hash(brief)
+    try:
+        editorial = edit_brief(brief, settings)
+    except EditorialError as exc:
+        typer.echo(f"Editorial generation failed: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    if settings.editor_mode != "rules" and editorial is None:
+        typer.echo("Editorial LLM unavailable or invalid; using rule-based fallback.", err=True)
+    elif editorial is not None:
+        typer.echo(f"Editorial draft ready with {settings.openai_model}.")
+    digest = content_hash(brief, editorial)
     publication = session.get(Publication, target)
     if _publication_is_current(publication, digest, settings.output_dir, target):
         typer.echo(
@@ -113,7 +123,12 @@ def build(
         )
         return
     try:
-        issue_path = render_site(brief, settings.output_dir, settings.project_root / "templates")
+        issue_path = render_site(
+            brief,
+            settings.output_dir,
+            settings.project_root / "templates",
+            editorial,
+        )
     except RenderValidationError as exc:
         now = datetime.now()
         if publication is None:
