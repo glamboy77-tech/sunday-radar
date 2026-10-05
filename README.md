@@ -23,6 +23,7 @@ sunday-radar collect-sources --as-of YYYY-MM-DD
 sunday-radar build --as-of YYYY-MM-DD
 sunday-radar check-html docs
 sunday-radar telegram-preview --as-of YYYY-MM-DD
+sunday-radar publish --as-of YYYY-MM-DD
 ```
 
 `collect-sources`는 한국은행 공식 RSS를 `var/sources/bank_of_korea/`에 날짜별 JSON으로 저장합니다. `build`는 Morning News와 이미 수집된 공식 자료 캐시를 import·분석하며, LLM 편집이 활성화되고 유효한 캐시가 없을 때만 OpenAI API를 호출합니다. `rules` 모드의 build는 네트워크를 호출하지 않습니다. 실제 Telegram 전송은 `telegram-preview --send`를 명시하고 환경 변수까지 설정한 경우에만 가능합니다.
@@ -38,7 +39,7 @@ sunday-radar telegram-preview --as-of YYYY-MM-DD
 최초 승인, 임상 성공, 상용화처럼 기존 선택지를 바꾸는 돌파 신호와 분야 표지가 함께 있을 때만
 Game-changer로 올리고, 협약·행사·수상·단순 전망은 감점합니다.
 
-`deploy/sunday-radar.service` 예시는 예약 발행 전에 `collect-sources`를 먼저 실행하고, 수집이 성공한 경우에만 `build`를 실행합니다. 발행 가능 여부와 누락일은 본편 입력인 Morning News 날짜를 기준으로 판단하며, 공식 자료만 있는 날짜는 coverage를 채우지 않습니다.
+`deploy/sunday-radar.service`는 예약 발행 전에 `collect-sources`를 먼저 실행하고 `build` 성공 후 `publish`를 실행합니다. `publish`는 `docs/index.html`, `docs/archive.html`, 해당 주차의 `docs/issues/YYYY-MM-DD/index.html`만 커밋해 `origin/main`으로 푸시하고 공개 URL에서 해당 판을 확인한 뒤 Telegram 알림을 보냅니다. 푸시·공개 확인에 실패하면 전송하지 않으며, 재실행 시 이미 보낸 판의 중복 전송을 막습니다. GitHub Pages의 배포 브랜치가 `main`의 `/docs`이고 서비스 계정에 Git push 권한이 있어야 합니다. 운영 중인 사용자 systemd 유닛을 변경했다면 배포 파일을 다시 복사하고 `systemctl --user daemon-reload`로 갱신해야 합니다. 발행 가능 여부와 누락일은 본편 입력인 Morning News 날짜를 기준으로 판단하며, 공식 자료만 있는 날짜는 coverage를 채우지 않습니다.
 
 `build`는 기존 공개 디렉터리를 임시 staging 디렉터리에 복제한 뒤 새 판을 렌더링하고, 제목·내부 링크·fragment·로컬 자산을 포함한 HTML 검사를 통과한 경우에만 `docs/`를 교체합니다. 검증 실패 시 기존 공개판은 유지됩니다. 같은 주차와 content hash의 유효한 산출물이 이미 있으면 `Unchanged`로 종료합니다.
 

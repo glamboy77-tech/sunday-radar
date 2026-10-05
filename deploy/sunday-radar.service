@@ -8,5 +8,6 @@ WorkingDirectory=/data/projects/sunday-radar
 EnvironmentFile=-/data/projects/sunday-radar/.env
 ExecStartPre=/data/projects/sunday-radar/.venv/bin/sunday-radar collect-sources
 ExecStart=/data/projects/sunday-radar/.venv/bin/sunday-radar build
+ExecStartPost=/data/projects/sunday-radar/.venv/bin/sunday-radar publish
 
 # This example is intentionally not installed or enabled automatically.

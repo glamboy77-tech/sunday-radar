@@ -13,6 +13,7 @@ from sunday_radar.analysis import build_brief
 from sunday_radar.db import Publication, create_db, import_days
 from sunday_radar.domain import SourceDay
 from sunday_radar.editorial import EditorialError, edit_brief
+from sunday_radar.publishing import publish_pages, wait_for_pages
 from sunday_radar.rendering import RenderValidationError, content_hash, render_site
 from sunday_radar.rendering import check_html as validate_html
 from sunday_radar.settings import Settings
@@ -186,6 +187,36 @@ def telegram_preview(
         _, session = create_db(settings.database_path)
         send_preview(session, settings, brief, force=force)
         typer.echo("Telegram preview sent.")
+
+
+@app.command("publish")
+def publish(
+    as_of: Annotated[
+        str | None, typer.Option(help="Edition date; defaults to the latest KST Sunday")
+    ] = None,
+) -> None:
+    """Publish a built edition to Pages, verify it is live, then notify Telegram."""
+    target = _target_date(as_of)
+    settings = Settings.load()
+    _, session = create_db(settings.database_path)
+    publication = session.get(Publication, target)
+    issue = settings.output_dir / "issues" / target.isoformat() / "index.html"
+    if publication is None or publication.status != "generated" or not issue.is_file():
+        raise typer.BadParameter("Build the edition before publishing")
+    if validate_html(settings.output_dir):
+        raise typer.BadParameter("Site HTML validation failed")
+    if not settings.telegram_bot_token or not settings.telegram_chat_id:
+        raise typer.BadParameter("Telegram credentials are required to publish")
+    url = f"{settings.public_base_url}/issues/{target.isoformat()}/"
+    publish_pages(settings.project_root, settings.output_dir, target)
+    typer.echo(f"Pushed {target.isoformat()} to origin/main; waiting for {url}")
+    wait_for_pages(url, target)
+    if publication.telegram_sent_at:
+        typer.echo("Telegram already sent for this edition.")
+        return
+    brief = build_brief(load_sources(settings, target), target)
+    send_preview(session, settings, brief)
+    typer.echo("Telegram preview sent.")
 
 
 if __name__ == "__main__":
