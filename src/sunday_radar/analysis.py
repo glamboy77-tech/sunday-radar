@@ -21,6 +21,11 @@ from sunday_radar.normalization import clean_summary_text, normalize_text, stabl
 
 STOPWORDS = {"관련", "확대", "상승", "하락", "추진", "발표", "논란", "정부", "이번주"}
 REJECTED_KEYWORDS = {
+    "등에",
+    "등의",
+    "등은",
+    "같은",
+    "투자",
     "앞두고",
     "하는",
     "함께",
@@ -32,6 +37,18 @@ REJECTED_KEYWORDS = {
     "co",
     "kr",
 }
+
+
+def _usable_keyword(value: str) -> bool:
+    normalized = normalize_text(value)
+    tokens = normalized.split()
+    return bool(
+        normalized
+        and normalized not in REJECTED_KEYWORDS
+        and not any(len(token) == 1 and re.fullmatch(r"[가-힣]", token) for token in tokens)
+    )
+
+
 DOMAIN_TERMS = {
     "stocks": ("주가", "증시", "코스피", "코스닥", "실적", "반도체", "엔터주", "상장"),
     "fx": ("환율", "원화", "달러", "엔화", "위안"),
@@ -388,12 +405,29 @@ def _similar(left: str, right: str) -> bool:
     a, b = _tokens(left), _tokens(right)
     if not a or not b:
         return normalize_text(left) == normalize_text(right)
-    overlap = len(a & b) / min(len(a), len(b))
-    return (
-        overlap >= 0.5
-        or normalize_text(left) in normalize_text(right)
-        or normalize_text(right) in normalize_text(left)
-    )
+    compact_left = normalize_text(left).replace(" ", "")
+    compact_right = normalize_text(right).replace(" ", "")
+    if compact_left == compact_right:
+        return True
+    # A generic shared word such as 'investment' is not an issue identity.
+    if min(len(a), len(b)) == 1:
+        return False
+    return len(a & b) >= 2
+
+
+def _relevant_article(signal: TrendSignal, article: Article) -> bool:
+    """Do not treat an upstream related-article ID as proof of topical relevance."""
+    if signal.source_kind != "morningnews":
+        return True
+    keyword = normalize_text(signal.keyword)
+    title = normalize_text(article.title)
+    if not title:
+        return False
+    if keyword in title or keyword.replace(" ", "") in title.replace(" ", ""):
+        return True
+    tokens = [token for token in _tokens(keyword) if len(token) >= 3]
+    # A short or generic token is not enough to attach an unrelated article.
+    return bool(tokens and all(token in title.split() for token in tokens))
 
 
 def _official_topics(value: str) -> set[str]:
@@ -907,7 +941,7 @@ def build_brief(days: list[SourceDay], as_of: date) -> WeeklyBrief:
                 *(trend for day in days for trend in day.trends),
                 *_person_action_signals(days, article_map),
             ]
-            if normalize_text(trend.keyword) not in REJECTED_KEYWORDS
+            if _usable_keyword(trend.keyword)
         ),
         key=lambda item: (
             item.source_kind,
@@ -916,6 +950,23 @@ def build_brief(days: list[SourceDay], as_of: date) -> WeeklyBrief:
             item.keyword,
         ),
     )
+    all_signals = [
+        signal.model_copy(
+            update={
+                "article_ids": [
+                    article_id
+                    for article_id in signal.article_ids
+                    if article_id in article_map
+                    and (
+                        len(signal.article_ids) == 1
+                        or _relevant_article(signal, article_map[article_id])
+                    )
+                ]
+            }
+        )
+        for signal in all_signals
+    ]
+    all_signals = [signal for signal in all_signals if signal.article_ids]
     editorial_signals = [signal for signal in all_signals if signal.source_kind == "morningnews"]
     official_signals = [signal for signal in all_signals if signal.source_kind == "bank_of_korea"]
     other_signals = [
@@ -968,16 +1019,6 @@ def build_brief(days: list[SourceDay], as_of: date) -> WeeklyBrief:
         issue for issue, source_kinds in issue_records if "morningnews" in source_kinds
     ]
     primary = _select_primary(editorial_issues)
-    if len(primary) < 3:
-        primary_ids = {issue.issue_id for issue in primary}
-        primary.extend(
-            issue
-            for issue in editorial_issues
-            if issue.sources
-            and issue.category in {"정치", "국제", "경제/거시"}
-            and issue.issue_id not in primary_ids
-        )
-        primary = primary[:3]
     primary_ids = {issue.issue_id for issue in primary}
     official_updates = [
         issue

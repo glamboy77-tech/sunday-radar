@@ -24,7 +24,7 @@
     </section>
 
     <section class="story" aria-labelledby="board-title">
-      <div class="section-heading"><p>THE WEEKLY STORY</p><h2 id="board-title">이번 주, 판을 바꾼<br>세 개의 장면</h2></div>
+      <div class="section-heading"><p>THE WEEKLY STORY</p><h2 id="board-title">이번 주의<br>핵심 장면</h2></div>
       {% for issue in brief.issues %}
       {% set editorial_section = editorial.sections[loop.index0] if editorial else none %}
       <article class="issue-card issue-card-{{ issue.editorial_lens.value }}" id="issue-{{ loop.index }}">
@@ -68,13 +68,13 @@
 
     <section aria-labelledby="currents-title">
       <div class="section-heading secondary"><p>EXTRA RADAR</p><h2 id="currents-title">본편 밖에서도<br>놓치면 안 될 변화</h2></div>
-      <p class="section-intro">본편의 세 축에는 들지 않았지만, 현장과 생활의 조건을 바꿀 가능성이 남은 소식입니다.</p>
+      <p class="section-intro">본편에는 들지 않았지만, 현장과 생활의 조건을 바꿀 가능성이 남은 소식입니다.</p>
       <div class="reading-notes">
       {% for issue in brief.currents %}
         <article>
           <p class="current-meta">{{ issue.category }} · {{ lens_labels[issue.editorial_lens.value] }}</p>
           <h3>{{ issue.title }}</h3>
-          <p>{{ (issue.sources[0].description or issue.blocks[0].text or issue.sources[0].title) | truncate(320, true, '…') }}</p>
+          <p>{{ issue.blocks[0].text | truncate(180, true, '…') }}</p>
           <div class="current-links">
           {% for source in issue.sources[:2] %}
             <a class="text-link" href="{{ source.url }}" rel="noopener noreferrer">{{ source.title | truncate(72, true, '…') }} <small>{{ source.source }}</small> →</a>

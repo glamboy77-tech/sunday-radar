@@ -150,11 +150,8 @@ def test_famous_person_name_without_consequential_action_is_not_power_move() -> 
 
     brief = build_brief([ceremony], report_date)
 
-    issue = next(issue for issue in brief.issues + brief.currents if issue.title == "정상 기념행사")
-    assert issue.editorial_lens != EditorialLens.POWER_MOVE
-    assert issue.decision_makers == ["김가람 (아르카디아 대통령)"]
-    assert issue.consequential_actions == []
-    assert issue.power_impact_chain == []
+    assert brief.issues == []
+    assert brief.currents == []
 
 
 def test_key_person_article_can_enter_candidates_when_action_changes_conditions() -> None:
@@ -283,12 +280,8 @@ def test_action_in_another_article_is_not_attributed_to_leader() -> None:
     )
 
     brief = build_brief([day], report_date)
-    issue = next(
-        issue for issue in brief.issues + brief.currents if issue.title == "지역 안보 현안"
-    )
-
-    assert issue.editorial_lens != EditorialLens.POWER_MOVE
-    assert issue.consequential_actions == []
+    assert brief.issues == []
+    assert brief.currents == []
 
 
 def test_build_brief_separates_evidence_and_extracts_domains() -> None:
@@ -442,12 +435,14 @@ def test_official_enrichment_is_deterministic_across_input_order() -> None:
 def test_source_limit_keeps_editorial_and_official_links() -> None:
     report_date = date(2026, 9, 28)
     morning = _source_day("morningnews", report_date, "가계신용 증가", "morning-main")
+    morning.articles[0].title = "가계신용 증가 발표"
+    morning.trends[0].reason = "가계신용 증가와 대출 금리 추이를 발표했습니다."
     for index in range(4):
         article_id = f"morning-extra-{index}"
         morning.articles.append(
             Article(
                 stable_id=article_id,
-                title=f"가계신용 기사 {index}",
+                title=f"가계신용 증가 기사 {index}",
                 url=f"https://example.com/{article_id}",
                 source="테스트경제",
                 report_date=report_date,
@@ -464,6 +459,56 @@ def test_source_limit_keeps_editorial_and_official_links() -> None:
         "bank_of_korea",
         "morningnews",
     }
+
+
+def test_related_article_ids_do_not_attach_unrelated_sources() -> None:
+    report_date = date(2026, 10, 4)
+    day = _source_day(
+        "morningnews",
+        report_date,
+        "국제 유가",
+        "oil",
+        title="국제 유가 급등",
+        reason="국제 유가 상승으로 물가가 올랐습니다.",
+        categories=["경제/거시"],
+    )
+    day.articles.append(
+        Article(
+            stable_id="unrelated",
+            title="브라질 축구단 운영 소식",
+            url="https://example.com/unrelated",
+            source="테스트경제",
+            report_date=report_date,
+            source_kind="morningnews",
+        )
+    )
+    day.trends[0].article_ids.append("unrelated")
+
+    brief = build_brief([day], report_date)
+    issue = next(issue for issue in brief.issues + brief.currents if "국제 유가" in issue.title)
+    assert [source.title for source in issue.sources] == ["국제 유가 급등"]
+
+
+def test_no_primary_padding_for_unqualified_story() -> None:
+    report_date = date(2026, 10, 4)
+    day = _source_day("morningnews", report_date, "기념행사", "ceremony")
+    brief = build_brief([day], report_date)
+    assert brief.issues == []
+
+
+def test_broken_keyword_fragment_is_not_selected() -> None:
+    report_date = date(2026, 10, 4)
+    day = _source_day(
+        "morningnews",
+        report_date,
+        "우크라 사",
+        "fragment",
+        title="우크라이나 관련 기사",
+        reason="우크라이나 관련 소식입니다.",
+    )
+    brief = build_brief([day], report_date)
+    assert brief.issues == []
+    assert brief.currents == []
 
 
 def test_unexplained_official_source_is_not_published_to_readers() -> None:
