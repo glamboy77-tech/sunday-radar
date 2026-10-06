@@ -20,6 +20,14 @@
       <p class="hero-label">이번 주의 이야기</p>
       <h1>{{ editorial.headline if editorial else brief.headline }}</h1>
       <p class="lede">{{ editorial.overview if editorial else brief.overview }}</p>
+      <div class="hero-art" aria-hidden="true">
+        <svg viewBox="0 0 720 160" preserveAspectRatio="xMidYMid meet" focusable="false" xmlns="http://www.w3.org/2000/svg">
+          <path d="M45 115Q190 18 360 80T675 40" fill="none" stroke="currentColor" stroke-width="2"/>
+          <path d="M45 135Q190 38 360 100T675 60" fill="none" stroke="currentColor" stroke-width="1" opacity=".4"/>
+          <circle cx="92" cy="91" r="13" fill="currentColor"/><circle cx="360" cy="80" r="21" fill="none" stroke="currentColor" stroke-width="2"/>
+          <circle cx="623" cy="56" r="9" fill="currentColor"/><circle cx="360" cy="80" r="42" fill="none" stroke="currentColor" opacity=".3"/>
+        </svg>
+      </div>
       {% if brief.missing_days %}<p class="notice">입력 누락일: {{ brief.missing_days | join(', ') }}</p>{% endif %}
     </section>
 
@@ -30,6 +38,14 @@
       <article class="issue-card issue-card-{{ issue.editorial_lens.value }}" id="issue-{{ loop.index }}">
         <p class="chapter-kicker">{{ lens_labels[issue.editorial_lens.value] }}{% if issue.editorial_lens.value == 'game_changer' %} · 주간 하이라이트{% endif %}</p>
         <div class="issue-number"><b>{{ '%02d' | format(loop.index) }}</b><span>{{ issue.category }}</span></div>
+        <div class="issue-art" aria-hidden="true">
+          <svg viewBox="0 0 720 72" preserveAspectRatio="xMidYMid meet" focusable="false" xmlns="http://www.w3.org/2000/svg">
+            <path d="M0 36h720" stroke="currentColor" stroke-width="1" opacity=".35"/>
+            <circle cx="180" cy="36" r="22" fill="none" stroke="currentColor" stroke-width="2"/>
+            <circle cx="360" cy="36" r="9" fill="currentColor"/>
+            <circle cx="540" cy="36" r="22" fill="none" stroke="currentColor" stroke-width="2"/>
+          </svg>
+        </div>
         <h3>{{ editorial_section.heading if editorial_section else issue.title }}</h3>
         <div class="story-copy">
           {% if editorial_section %}

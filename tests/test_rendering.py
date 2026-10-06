@@ -23,6 +23,8 @@ def test_render_site_and_html_checks(tmp_path: Path) -> None:
     assert check_html(tmp_path) == []
     assert "javascript:" not in issue.read_text(encoding="utf-8")
     html = issue.read_text(encoding="utf-8")
+    assert 'class="hero-art" aria-hidden="true"' in html
+    assert html.count('class="issue-art" aria-hidden="true"') == len(brief.issues)
     assert "이번 주의 이야기" in html
     assert brief.headline in html
     assert "OFFICIAL DESK" not in html
