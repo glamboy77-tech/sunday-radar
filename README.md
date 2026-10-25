@@ -47,6 +47,47 @@ Game-changer로 올리고, 협약·행사·수상·단순 전망은 감점합니
 
 공식 자료는 `기준금리`, `국제수지`, `소비자심리`처럼 좁게 정의한 주제가 정확히 하나의 핵심 뉴스 흐름과 일치할 때만 `공식 입장` 근거로 연결합니다. 독립된 한국은행 자료는 생활경제 의미를 명확히 풀 수 있는 지표만 `ECONOMY IN PLAIN WORDS`에 표시하며, 기술적인 발표 제목만 나열하지 않습니다. 공식 자료가 연결돼도 본편 제목·점수·포착 기간은 Morning News 신호를 기준으로 유지합니다.
 
+## 자동 발행 운영
+
+이 PC의 사용자 systemd 타이머가 **매주 일요일 20:30 (Asia/Seoul)**에 실행합니다.
+GitHub Actions는 품질 검사만 담당하며 발행 스케줄러가 아닙니다.
+
+```bash
+bash /data/projects/sunday-radar/deploy/install.sh
+systemctl --user status sunday-radar.timer --no-pager
+journalctl --user -u sunday-radar.service -n 80 --no-pager
+```
+
+설치 스크립트는 Python 3.12 복사본 가상환경을 확인하고 의존성 설치, 서비스·타이머
+등록, 예약 활성화까지 수행합니다. `/usr/bin/python3`의 버전이 바뀌어도 영향을 받지
+않도록 가상환경의 실행 파일은 심볼릭 링크를 쓰지 않습니다. 기존 가상환경이 깨졌다면
+이를 `var/` 아래에 백업한 뒤 아래 명령으로 새로 만들고 설치 스크립트를 실행합니다.
+
+```bash
+/usr/bin/python3.12 -m venv --copies /data/projects/sunday-radar/.venv
+```
+
+`deploy/run-weekly.sh`가 하나의 잠금과 동일한 기준일로 수집 → 빌드 → HTML 검사 →
+발행을 순서대로 수행합니다. 발행물 3개만 자동 커밋·푸시하며, 다른 코드 수정은
+임의로 커밋하지 않습니다. 실패하면 서비스가 15분마다 재시도합니다. 이미 푸시된
+커밋은 다시 푸시할 수 있고, 이미 전송한 판의 Telegram 알림은 생략합니다.
+서비스에는 `.env`가 로드되며 Git SSH 인증은 대화형 입력 없이 가능해야 합니다.
+
+`Persistent=true`로 PC가 꺼져 놓친 예약은 다음 기동 때 최신 일요일 기준으로
+보충 실행합니다(장기간 중단 시 과거 모든 주차를 자동 복원하는 것은 아닙니다).
+로그아웃 상태에서도 예약을 유지하려면 `loginctl enable-linger glamboy`가 필요합니다.
+PC가 꺼진 동안 정시 발행은 불가능하므로 24시간 정시 발행에는 상시 가동 호스트가 필요합니다.
+
+수동 즉시 실행(실제 커밋·푸시·Telegram 전송 포함):
+
+```bash
+systemctl --user start sunday-radar.service
+```
+
+과거 판 보충은 `.env`를 로드한 환경에서
+`bash /data/projects/sunday-radar/deploy/run-weekly.sh YYYY-MM-DD`로 실행합니다.
+과거 판 빌드도 홈 페이지를 바꾸므로 최신 판보다 먼저 처리해야 합니다.
+
 ## 개발 검증
 
 ```bash
